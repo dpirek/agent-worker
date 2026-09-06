@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Worker Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0e14;
+      --panel: #121722;
+      --panel-2: #171d2a;
+      --line: #293143;
+      --text: #edf1f7;
+      --muted: #8f9bb0;
+      --accent: #78a9ff;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #fb7185;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 15% -10%, #17233b 0, transparent 32rem), var(--bg);
+      color: var(--text);
+      font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .shell { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 56px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+    h1, h2, p { margin: 0; }
+    h1 { font: 600 25px/1.2 system-ui, sans-serif; letter-spacing: -.02em; }
+    h2 { font: 600 14px/1.2 system-ui, sans-serif; }
+    .subtitle { color: var(--muted); margin-top: 5px; }
+    .live { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px currentColor; }
+    .dot.ok { background: var(--green); }
+    .dot.bad { background: var(--red); }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, .85fr); gap: 16px; }
+    .panel { background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .badge { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); padding: 2px 8px; font-size: 11px; }
+    .console { min-height: 390px; max-height: 56vh; overflow: auto; padding: 16px; }
+    .empty { color: var(--muted); display: grid; min-height: 330px; place-items: center; text-align: center; }
+    .message { margin-bottom: 16px; }
+    .message .label { color: var(--muted); font-size: 11px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .08em; }
+    .message .body { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px 14px; background: var(--panel-2); border-left: 2px solid var(--accent); border-radius: 4px 10px 10px 4px; }
+    .message .body a { color: var(--accent); text-underline-offset: 3px; }
+    .message.user .body { border-color: #a78bfa; }
+    .message.error .body { border-color: var(--red); color: #fecdd3; }
+    form { border-top: 1px solid var(--line); padding: 14px; }
+    textarea { width: 100%; min-height: 92px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #0d111a; color: var(--text); font: inherit; outline: none; }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #78a9ff20; }
+    .form-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+    button { border: 0; border-radius: 9px; padding: 9px 15px; background: var(--accent); color: #07111f; font: 700 13px system-ui, sans-serif; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: .5; }
+    .status-body { padding: 6px 16px 16px; }
+    dl { margin: 0; }
+    .row { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid #222a39; }
+    .row:last-child { border: 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; overflow-wrap: anywhere; }
+    .yes { color: var(--green); }
+    .no { color: var(--red); }
+    .wide { grid-column: 1 / -1; }
+    .tasks { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 500; }
+    td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+    .state-completed { color: var(--green); }
+    .state-working, .state-submitted { color: var(--amber); }
+    .state-failed { color: var(--red); }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } .shell { width: min(100% - 20px, 720px); padding-top: 18px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div><h1>Agent Worker Console</h1><p class="subtitle" id="agent-description">Connecting…</p></div>
+      <div class="live"><span class="dot" id="health-dot"></span><span id="health-text">Checking server</span></div>
+    </header>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head"><h2>Testing REPL</h2><span class="badge" id="run-state">idle</span></div>
+        <div class="console" id="console"><div class="empty">Send a task to exercise the configured agent.<br>Ctrl/⌘ + Enter submits.</div></div>
+        <form id="repl-form">
+          <textarea id="prompt" aria-label="Task prompt" placeholder="Ask the worker to inspect, change, or explain something in its workspace…" required></textarea>
+          <div class="form-row"><span id="task-id">No active task</span><button id="send" type="submit">Run task</button></div>
+        </form>
+      </section>
+
+      <aside class="panel">
+        <div class="panel-head"><h2>Agent status</h2><span class="badge" id="queue-badge">0 active</span></div>
+        <div class="status-body" id="status"><div class="empty">Loading configuration…</div></div>
+      </aside>
+
+      <section class="panel wide">
+        <div class="panel-head"><h2>Recent tasks</h2><span class="badge">latest 50</span></div>
+        <div class="tasks"><table><thead><tr><th>Message</th><th>Source</th><th>Status</th><th>Callback</th><th>Created</th></tr></thead><tbody id="tasks"><tr><td colspan="5" style="color:var(--muted)">No tasks yet.</td></tr></tbody></table></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const $ = (selector) => document.querySelector(selector);
+    const consoleNode = $("#console");
+    const form = $("#repl-form");
+    const promptNode = $("#prompt");
+    const sendButton = $("#send");
+    let activeTask = null;
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+    }
+
+    function addMessage(role, text, extraClass = "") {
+      const empty = consoleNode.querySelector(".empty");
+      if (empty) empty.remove();
+      const item = document.createElement("div");
+      item.className = `message ${role} ${extraClass}`;
+      const label = document.createElement("div");
+      label.className = "label";
+      label.textContent = role;
+      const body = document.createElement("div");
+      body.className = "body";
+      if (role === "agent") {
+        const escaped = escapeHtml(text);
+        body.innerHTML = escaped.replace(
+          /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
+        );
+      } else {
+        body.textContent = text;
+      }
+      item.append(label, body);
+      consoleNode.append(item);
+      consoleNode.scrollTop = consoleNode.scrollHeight;
+    }
+
+    function formatTime(value) {
+      return value ? new Date(value).toLocaleTimeString() : "—";
+    }
+
+    function renderStatus(data) {
+      $("#health-dot").className = "dot ok";
+      $("#health-text").textContent = "Server online";
+      $("#agent-description").textContent = `${data.agent.name} — ${data.agent.description}`;
+      $("#queue-badge").textContent = `${data.queue.active} active · ${data.queue.queued} queued`;
+      const rows = [
+        ["Provider", data.provider.name], ["Model", data.provider.model], ["Endpoint", data.provider.url],
+        ["API key", data.provider.apiKeyConfigured ? "configured" : "missing", data.provider.apiKeyConfigured ? "yes" : "no"],
+        ["Workspace", data.execution.workspace], ["Concurrency", data.execution.concurrency],
+        ["Max turns", data.execution.maxTurns], ["Tools", data.execution.tools.join(", ") || "none"],
+        ["Prompts", data.execution.systemPromptOverrides.join(", ") || "built-in defaults"],
+        ["MCP", data.execution.mcpConfigured ? "configured" : "not configured"],
+        ["Callbacks", `${data.callback.retries} attempts / ${data.callback.timeoutMs}ms`],
+      ];
+      $("#status").innerHTML = `<dl>${rows.map(([key, value, klass]) => `<div class="row"><dt>${escapeHtml(key)}</dt><dd class="${klass || ""}">${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
+      $("#tasks").innerHTML = data.tasks.length ? data.tasks.map((task) => `<tr>
+        <td title="${escapeHtml(task.messageId)}">${escapeHtml(task.messageId)}</td><td>${escapeHtml(task.source)}</td>
+        <td class="state-${escapeHtml(task.state)}">${escapeHtml(task.state)}</td>
+        <td>${task.callbackDelivered === null ? "—" : task.callbackDelivered ? "delivered" : task.callbackError ? "failed" : "pending"}</td>
+        <td>${escapeHtml(formatTime(task.createdAt))}</td></tr>`).join("") : `<tr><td colspan="5" style="color:var(--muted)">No tasks yet.</td></tr>`;
+    }
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch("/api/status", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        renderStatus(await response.json());
+      } catch (error) {
+        $("#health-dot").className = "dot bad";
+        $("#health-text").textContent = `Offline: ${error.message}`;
+      }
+    }
+
+    async function watchTask(taskId) {
+      while (activeTask === taskId) {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        const task = data.task;
+        $("#run-state").textContent = task.state;
+        await refreshStatus();
+        if (task.state === "completed" || task.state === "failed") {
+          const text = task.result?.message?.parts?.[0]?.text || task.error || "Task ended without output.";
+          addMessage("agent", text, task.state === "failed" ? "error" : "");
+          activeTask = null;
+          sendButton.disabled = false;
+          $("#run-state").textContent = task.state;
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const prompt = promptNode.value.trim();
+      if (!prompt || activeTask) return;
+      addMessage("user", prompt);
+      promptNode.value = "";
+      sendButton.disabled = true;
+      $("#run-state").textContent = "submitting";
+      try {
+        const response = await fetch("/api/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        activeTask = data.taskId;
+        $("#task-id").textContent = `Task ${data.taskId}`;
+        await watchTask(data.taskId);
+      } catch (error) {
+        addMessage("system", error.message, "error");
+        activeTask = null;
+        sendButton.disabled = false;
+        $("#run-state").textContent = "error";
+      }
+    });
+
+    promptNode.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) form.requestSubmit();
+    });
+
+    refreshStatus();
+    setInterval(refreshStatus, 2500);
+  </script>
+</body>
+</html>

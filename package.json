@@ -1,0 +1,22 @@
+{
+  "name": "agent-worker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dpirek/agent-worker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/dpirek/agent-worker/issues"
+  },
+  "homepage": "https://github.com/dpirek/agent-worker#readme"
+}
