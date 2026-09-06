@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { appendWorkspaceLinks, createWorkerServer } from "../lib/worker.js";
+import { appendWorkspaceLinks, createWorkerServer, postCallback } from "../lib/worker.js";
 
 async function listeningServer(options) {
   const server = createWorkerServer(options);
@@ -86,7 +86,53 @@ test("reports agent failures through the callback", async (t) => {
   const result = await callbackReceived;
   assert.equal(result.status.state, "failed");
   assert.equal(result.error.code, "TASK_FAILED");
+  assert.equal(result.error.details.name, "Error");
+  assert.match(result.error.details.stack, /model unavailable/);
   assert.match(result.message.parts[0].text, /model unavailable/);
+});
+
+test("reports callback network diagnostics after retries are exhausted", async () => {
+  const cause = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:9000"), {
+    code: "ECONNREFUSED",
+    address: "127.0.0.1",
+    port: 9000,
+  });
+  const job = { callback: { url: "http://127.0.0.1:9000/callback", token: "secret" } };
+
+  await assert.rejects(
+    postCallback(job, { ok: true }, {
+      retries: 2,
+      timeoutMs: 100,
+      async fetchImpl() { throw new TypeError("fetch failed", { cause }); },
+    }),
+    (error) => {
+      assert.equal(error.details.request.method, "POST");
+      assert.equal(error.details.request.url, "http://127.0.0.1:9000/callback");
+      assert.equal(error.details.request.attempt, 2);
+      assert.equal(error.details.response, null);
+      assert.equal(error.details.cause.cause.code, "ECONNREFUSED");
+      assert.match(error.stack, /CallbackRequestError/);
+      return true;
+    },
+  );
+});
+
+test("reports callback HTTP response details", async () => {
+  const job = { callback: { url: "https://orchestrator.example/callback", token: "secret" } };
+  await assert.rejects(
+    postCallback(job, { ok: true }, {
+      retries: 1,
+      async fetchImpl() {
+        return new Response("gateway unavailable", { status: 502, statusText: "Bad Gateway" });
+      },
+    }),
+    (error) => {
+      assert.equal(error.details.response.status, 502);
+      assert.equal(error.details.response.statusText, "Bad Gateway");
+      assert.equal(error.details.response.body, "gateway unavailable");
+      return true;
+    },
+  );
 });
 
 test("returns the discoverable agent card", async (t) => {

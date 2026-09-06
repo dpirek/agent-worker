@@ -68,6 +68,20 @@
     th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
     th { color: var(--muted); font-weight: 500; }
     td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+    .task-row { cursor: pointer; }
+    .task-row:hover { background: #ffffff05; }
+    .task-toggle { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 0; background: none; color: var(--text); font: inherit; font-weight: 400; }
+    .task-toggle .chevron { color: var(--muted); display: inline-block; flex: 0 0 auto; transition: transform .15s ease; }
+    .task-toggle[aria-expanded="true"] .chevron { transform: rotate(90deg); }
+    .task-toggle .message-id { overflow: hidden; text-overflow: ellipsis; }
+    .task-details-cell { max-width: none !important; padding: 0 14px 14px 38px; background: #0d111a; white-space: normal; }
+    .task-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 24px; padding: 12px 0 2px; }
+    .task-detail { min-width: 0; }
+    .task-detail-label { color: var(--muted); display: block; margin-bottom: 2px; }
+    .task-detail-value { display: block; overflow-wrap: anywhere; }
+    .task-error { color: #fecdd3; grid-column: 1 / -1; }
+    .task-trace { grid-column: 1 / -1; }
+    .task-trace .task-detail-value { color: #cbd5e1; white-space: pre-wrap; }
     .state-completed { color: var(--green); }
     .state-working, .state-submitted { color: var(--amber); }
     .state-failed { color: var(--red); }
@@ -110,6 +124,7 @@
     const promptNode = $("#prompt");
     const sendButton = $("#send");
     let activeTask = null;
+    const expandedTasks = new Set();
 
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -143,6 +158,58 @@
       return value ? new Date(value).toLocaleTimeString() : "—";
     }
 
+    function taskDetail(label, value, klass = "") {
+      return `<div class="task-detail ${klass}"><span class="task-detail-label">${escapeHtml(label)}</span><span class="task-detail-value">${escapeHtml(value ?? "—")}</span></div>`;
+    }
+
+    function diagnosticDetails(details, prefix = "") {
+      if (!details) return "";
+      const request = details.request
+        ? `${details.request.method || "GET"} ${details.request.url || "unknown URL"}${details.request.attempt ? ` (attempt ${details.request.attempt})` : ""}`
+        : "Unknown request";
+      const response = details.response
+        ? `HTTP ${details.response.status}${details.response.statusText ? ` ${details.response.statusText}` : ""}\nHeaders: ${JSON.stringify(details.response.headers || {}, null, 2)}\nBody: ${details.response.body || "(empty response body)"}${details.response.truncated ? "\n(response body truncated)" : ""}`
+        : "No HTTP response received.";
+      const cause = details.cause ? JSON.stringify(details.cause, null, 2) : "No nested cause was provided.";
+      return [
+        taskDetail(`${prefix}Request`, request, "task-trace"),
+        taskDetail(`${prefix}Response`, response, "task-trace"),
+        taskDetail(`${prefix}Cause`, cause, "task-trace"),
+        taskDetail(`${prefix}Trace`, details.stack || "No stack trace was provided.", "task-trace"),
+      ].join("");
+    }
+
+    function renderTaskRows(tasks) {
+      if (!tasks.length) return `<tr><td colspan="5" style="color:var(--muted)">No tasks yet.</td></tr>`;
+      return tasks.map((task, index) => {
+        const expanded = expandedTasks.has(task.taskId);
+        const detailsId = `task-details-${index}`;
+        const callbackState = task.callbackDelivered === null ? "—" : task.callbackDelivered ? "delivered" : task.callbackError ? "failed" : "pending";
+        const errorDetails = task.errorDetails || task.result?.error?.details;
+        const failure = task.state === "failed"
+          ? taskDetail("Error", task.error || task.result?.error?.message || "No error details were provided.", "task-error") + diagnosticDetails(errorDetails)
+          : "";
+        const callbackError = task.callbackError
+          ? taskDetail("Callback error", task.callbackError, "task-error") + diagnosticDetails(task.callbackErrorDetails, "Callback ")
+          : "";
+        return `<tr class="task-row" data-task-id="${escapeHtml(task.taskId)}">
+          <td title="${escapeHtml(task.messageId)}"><button type="button" class="task-toggle" aria-expanded="${expanded}" aria-controls="${detailsId}"><span class="chevron" aria-hidden="true">›</span><span class="message-id">${escapeHtml(task.messageId)}</span></button></td>
+          <td>${escapeHtml(task.source)}</td>
+          <td class="state-${escapeHtml(task.state)}">${escapeHtml(task.state)}</td>
+          <td>${callbackState}</td>
+          <td>${escapeHtml(formatTime(task.createdAt))}</td>
+        </tr><tr id="${detailsId}" class="task-details-row"${expanded ? "" : " hidden"}>
+          <td colspan="5" class="task-details-cell"><div class="task-details">
+            ${taskDetail("Task ID", task.taskId)}
+            ${taskDetail("Message ID", task.messageId)}
+            ${taskDetail("Started", task.startedAt ? new Date(task.startedAt).toLocaleString() : "—")}
+            ${taskDetail("Finished", task.finishedAt ? new Date(task.finishedAt).toLocaleString() : "—")}
+            ${failure}${callbackError}
+          </div></td>
+        </tr>`;
+      }).join("");
+    }
+
     function renderStatus(data) {
       $("#health-dot").className = "dot ok";
       $("#health-text").textContent = "Server online";
@@ -158,11 +225,7 @@
         ["Callbacks", `${data.callback.retries} attempts / ${data.callback.timeoutMs}ms`],
       ];
       $("#status").innerHTML = `<dl>${rows.map(([key, value, klass]) => `<div class="row"><dt>${escapeHtml(key)}</dt><dd class="${klass || ""}">${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
-      $("#tasks").innerHTML = data.tasks.length ? data.tasks.map((task) => `<tr>
-        <td title="${escapeHtml(task.messageId)}">${escapeHtml(task.messageId)}</td><td>${escapeHtml(task.source)}</td>
-        <td class="state-${escapeHtml(task.state)}">${escapeHtml(task.state)}</td>
-        <td>${task.callbackDelivered === null ? "—" : task.callbackDelivered ? "delivered" : task.callbackError ? "failed" : "pending"}</td>
-        <td>${escapeHtml(formatTime(task.createdAt))}</td></tr>`).join("") : `<tr><td colspan="5" style="color:var(--muted)">No tasks yet.</td></tr>`;
+      $("#tasks").innerHTML = renderTaskRows(data.tasks);
     }
 
     async function refreshStatus() {
@@ -221,6 +284,19 @@
 
     promptNode.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) form.requestSubmit();
+    });
+
+    $("#tasks").addEventListener("click", (event) => {
+      const row = event.target.closest(".task-row");
+      if (!row) return;
+      const taskId = row.dataset.taskId;
+      if (expandedTasks.has(taskId)) expandedTasks.delete(taskId);
+      else expandedTasks.add(taskId);
+      const toggle = row.querySelector(".task-toggle");
+      const details = document.getElementById(toggle.getAttribute("aria-controls"));
+      const expanded = expandedTasks.has(taskId);
+      toggle.setAttribute("aria-expanded", String(expanded));
+      details.hidden = !expanded;
     });
 
     refreshStatus();

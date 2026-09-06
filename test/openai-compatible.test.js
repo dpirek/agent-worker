@@ -63,3 +63,58 @@ test("uses the native Ollama API for an ollama-local provider", async () => {
   assert.equal(requestBody.stream, false);
   assert.equal(response.output_text, "done locally");
 });
+
+test("reports the request URL, missing response, cause, and trace for fetch failures", async () => {
+  const connectionError = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:11434"), {
+    code: "ECONNREFUSED",
+    address: "127.0.0.1",
+    port: 11434,
+  });
+  const client = createModelClient({
+    name: "ollama-local",
+    url: "http://localhost:11434",
+    async fetchImpl() {
+      throw new TypeError("fetch failed", { cause: connectionError });
+    },
+  });
+
+  await assert.rejects(
+    client.createResponse({ model: "test-model", input: [], tools: [] }),
+    (error) => {
+      assert.match(error.message, /POST http:\/\/localhost:11434\/api\/chat/);
+      assert.match(error.message, /ECONNREFUSED/);
+      assert.deepEqual(error.details.request, {
+        method: "POST",
+        url: "http://localhost:11434/api/chat",
+      });
+      assert.equal(error.details.response, null);
+      assert.equal(error.details.cause.cause.code, "ECONNREFUSED");
+      assert.match(error.stack, /ProviderRequestError/);
+      return true;
+    },
+  );
+});
+
+test("reports HTTP status and response body for provider failures", async () => {
+  const client = createModelClient({
+    name: "openrouter",
+    url: "https://models.example/v1",
+    async fetchImpl() {
+      return new Response(JSON.stringify({ error: { message: "model unavailable" } }), {
+        status: 503,
+        statusText: "Service Unavailable",
+      });
+    },
+  });
+
+  await assert.rejects(
+    client.createResponse({ model: "test-model", input: [], tools: [] }),
+    (error) => {
+      assert.equal(error.details.request.url, "https://models.example/v1/chat/completions");
+      assert.equal(error.details.response.status, 503);
+      assert.equal(error.details.response.statusText, "Service Unavailable");
+      assert.match(error.details.response.body, /model unavailable/);
+      return true;
+    },
+  );
+});
