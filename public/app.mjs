@@ -1,5 +1,6 @@
 import "./components/index.mjs";
 import { fetchStatus, fetchTask, submitTask } from "./lib/api.mjs";
+import { initPanelMinimizing } from "./lib/panel-minimize.mjs";
 import { initPanelResizing } from "./lib/panel-resize.mjs";
 import { createRenderer } from "./lib/render.mjs";
 
@@ -25,7 +26,9 @@ const elements = {
 const renderer = createRenderer(elements);
 let activeTask = null;
 
-initPanelResizing();
+let panelResizing;
+initPanelMinimizing({ onChange: () => panelResizing?.refresh() });
+panelResizing = initPanelResizing();
 
 function resizePrompt() {
   elements.prompt.style.height = "auto";

@@ -189,12 +189,19 @@ test("serves the testing console and redacted agent status", async (t) => {
   const componentResponse = await fetch(`${url}/components/testing-repl.mjs`);
   assert.equal(componentResponse.status, 200);
   assert.match(componentResponse.headers.get("content-type"), /text\/javascript/);
-  assert.match(await componentResponse.text(), /defineComponent\("testing-repl"/);
+  const component = await componentResponse.text();
+  assert.match(component, /defineComponent\("testing-repl"/);
+  assert.match(component, /data-panel-toggle/);
 
   const resizeResponse = await fetch(`${url}/lib/panel-resize.mjs`);
   assert.equal(resizeResponse.status, 200);
   assert.match(resizeResponse.headers.get("content-type"), /text\/javascript/);
   assert.match(await resizeResponse.text(), /agent-worker\.panel-layout\.v1/);
+
+  const minimizeResponse = await fetch(`${url}/lib/panel-minimize.mjs`);
+  assert.equal(minimizeResponse.status, 200);
+  assert.match(minimizeResponse.headers.get("content-type"), /text\/javascript/);
+  assert.match(await minimizeResponse.text(), /agent-worker\.minimized-panels\.v1/);
 
   const statusResponse = await fetch(`${url}/api/status`);
   const status = await statusResponse.json();

@@ -35,8 +35,18 @@ function writeLayout(storage, layout) {
   }
 }
 
-function setTrackShares(container, prefix, shares) {
-  shares.forEach((share, index) => container.style.setProperty(`--${prefix}-${index + 1}`, `${share}fr`));
+function setTrackShares(layout) {
+  const vertical = layout.axis() === "y";
+  const minimized = layout.panels.map((panel) => vertical && panel.classList.contains("is-minimized"));
+  const activeTotal = layout.shares.reduce((total, share, index) => total + (minimized[index] ? 0 : share), 0);
+  layout.shares.forEach((share, index) => {
+    const panel = layout.panels[index];
+    const panelStyle = getComputedStyle(panel);
+    const headerHeight = panel.querySelector(".panel-head")?.getBoundingClientRect().height || 58;
+    const borderHeight = Number.parseFloat(panelStyle.borderTopWidth) + Number.parseFloat(panelStyle.borderBottomWidth);
+    const trackSize = minimized[index] ? `${headerHeight + borderHeight}px` : `${share / activeTotal}fr`;
+    layout.container.style.setProperty(`--${layout.prefix}-${index + 1}`, trackSize);
+  });
 }
 
 function initPanelResizing({ storage = window.localStorage } = {}) {
@@ -73,7 +83,7 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
   layouts["right-rail"].shares = saved.rightRail;
 
   function applyLayout(layout) {
-    setTrackShares(layout.container, layout.prefix, layout.shares);
+    setTrackShares(layout);
   }
 
   function save() {
@@ -87,7 +97,11 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
     const axis = layout.axis();
     const boundary = Number(resizer.dataset.index);
     const position = layout.shares.slice(0, boundary + 1).reduce((sum, share) => sum + share, 0);
+    const disabled = layout.panels[boundary].classList.contains("is-minimized")
+      || layout.panels[boundary + 1].classList.contains("is-minimized");
     resizer.dataset.axis = axis;
+    resizer.classList.toggle("is-disabled", disabled);
+    resizer.setAttribute("aria-disabled", String(disabled));
     resizer.setAttribute("aria-orientation", axis === "x" ? "vertical" : "horizontal");
     resizer.setAttribute("aria-valuenow", String(Math.round(position * 100)));
   }
@@ -99,8 +113,12 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
     });
   }
 
-  for (const layout of Object.values(layouts)) applyLayout(layout);
-  updateSeparators();
+  function refresh() {
+    for (const layout of Object.values(layouts)) applyLayout(layout);
+    updateSeparators();
+  }
+
+  refresh();
 
   document.querySelectorAll("layout-resizer").forEach((resizer) => {
     const layout = layouts[resizer.dataset.layout];
@@ -122,7 +140,7 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
     }
 
     resizer.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || resizer.classList.contains("is-disabled")) return;
       const axis = layout.axis();
       drag = {
         axis,
@@ -154,6 +172,7 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
     resizer.addEventListener("pointerup", finishDrag);
     resizer.addEventListener("pointercancel", finishDrag);
     resizer.addEventListener("keydown", (event) => {
+      if (resizer.classList.contains("is-disabled")) return;
       const axis = layout.axis();
       const direction = axis === "x"
         ? { ArrowLeft: -1, ArrowRight: 1 }[event.key]
@@ -167,6 +186,7 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
       event.preventDefault();
     });
     resizer.addEventListener("dblclick", () => {
+      if (resizer.classList.contains("is-disabled")) return;
       layout.shares = [...layout.defaults];
       applyLayout(layout);
       updateSeparators();
@@ -174,7 +194,8 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
     });
   });
 
-  window.addEventListener("resize", updateSeparators);
+  window.addEventListener("resize", refresh);
+  return { refresh };
 }
 
 export { DEFAULT_LAYOUT, STORAGE_KEY, initPanelResizing, normalizedShares };
