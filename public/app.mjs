@@ -1,5 +1,6 @@
 import "./components/index.mjs";
 import { fetchStatus, fetchTask, submitTask } from "./lib/api.mjs";
+import { initPanelResizing } from "./lib/panel-resize.mjs";
 import { createRenderer } from "./lib/render.mjs";
 
 const select = (selector) => document.querySelector(selector);
@@ -23,6 +24,8 @@ const elements = {
 };
 const renderer = createRenderer(elements);
 let activeTask = null;
+
+initPanelResizing();
 
 function resizePrompt() {
   elements.prompt.style.height = "auto";

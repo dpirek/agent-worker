@@ -55,8 +55,17 @@ agent-status-dialog { display: contents; }
 .dot { width: 11px; height: 11px; aspect-ratio: 1; flex: 0 0 11px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px currentColor; }
 .dot.ok { background: var(--green); }
 .dot.bad { background: var(--red); }
-.dashboard { min-height: 0; flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1.34fr) minmax(430px, 1fr); gap: var(--panel-gap); overflow: hidden; }
-.right-rail { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, .95fr) minmax(0, .88fr) minmax(0, .72fr); gap: var(--panel-gap); overflow: hidden; }
+.dashboard { min-height: 0; flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, var(--dashboard-track-1, 1.34fr)) var(--panel-gap) minmax(0, var(--dashboard-track-2, 1fr)); gap: 0; overflow: hidden; }
+.right-rail { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, var(--right-track-1, .95fr)) var(--panel-gap) minmax(0, var(--right-track-2, .88fr)) var(--panel-gap) minmax(0, var(--right-track-3, .72fr)); gap: 0; overflow: hidden; }
+.layout-resizer { position: relative; z-index: 2; display: grid; min-width: 0; min-height: 0; place-items: center; touch-action: none; outline: none; }
+.layout-resizer::before { position: absolute; inset: 0; content: ""; }
+.resize-grip { display: block; background: var(--line-dim); transition: background-color .15s ease, box-shadow .15s ease; }
+.layout-resizer[data-axis="x"] { cursor: col-resize; }
+.layout-resizer[data-axis="x"] .resize-grip { width: 1px; height: 36px; }
+.layout-resizer[data-axis="y"] { cursor: row-resize; }
+.layout-resizer[data-axis="y"] .resize-grip { width: 36px; height: 1px; }
+.layout-resizer:hover .resize-grip, .layout-resizer:focus-visible .resize-grip, .layout-resizer.is-dragging .resize-grip { background: var(--green); box-shadow: 0 0 8px var(--green); }
+body.is-resizing { cursor: grabbing; user-select: none; }
 .panel { min-width: 0; min-height: 0; overflow: hidden; }
 .right-rail > .panel { display: flex; flex-direction: column; }
 .repl-panel { display: flex; min-height: 0; flex-direction: column; }
@@ -93,7 +102,6 @@ textarea:focus { border-color: var(--text); box-shadow: inset 0 0 0 1px #dce2df5
 .send-button:hover { background: #dce2df0d; }
 .send-button:disabled { cursor: wait; opacity: .45; }
 .send-button svg { width: 14px; height: 14px; }
-.key-hint { margin-left: -15px; padding: 10px 13px; border: 1px solid var(--line-dim); }
 .tasks { min-height: 0; flex: 1 1 auto; overflow: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 11px; }
 th, td { height: 45px; padding: 10px 13px; border-right: 1px solid var(--line-dim); border-bottom: 1px solid var(--line-dim); text-align: left; white-space: nowrap; }
@@ -148,11 +156,14 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
   .topbar { grid-template-columns: 70px minmax(0, 1fr) auto; }
 }
 @media (max-width: 760px) {
-  .dashboard { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr); }
+  .dashboard { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, var(--dashboard-track-1, 1.25fr)) var(--panel-gap) minmax(0, var(--dashboard-track-2, 1fr)); }
   .right-rail { grid-template-rows: repeat(3, minmax(0, 1fr)); }
 }
 @media (min-width: 641px) and (max-width: 760px) {
-  .right-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
+  .right-rail { grid-template-columns: minmax(0, var(--right-track-1, 1fr)) var(--panel-gap) minmax(0, var(--right-track-2, 1fr)) var(--panel-gap) minmax(0, var(--right-track-3, 1fr)); grid-template-rows: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .right-rail { grid-template-rows: minmax(0, var(--right-track-1, 1fr)) var(--panel-gap) minmax(0, var(--right-track-2, 1fr)) var(--panel-gap) minmax(0, var(--right-track-3, 1fr)); }
 }
 @media (max-width: 640px) {
   .shell { padding: 9px; }
@@ -173,7 +184,6 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
   .task-indicator { max-width: 42%; }
   #task-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .send-button { min-width: 118px; padding-inline: 11px; }
-  .key-hint { display: none; }
   .agent-row { grid-template-columns: 98px minmax(0, 1fr); }
   .right-rail .panel-head { flex-basis: 40px; padding-inline: 11px; }
   .right-rail .panel-head h2 { font-size: 11px; }

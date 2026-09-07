@@ -11,9 +11,12 @@
     <agent-console-header></agent-console-header>
     <div class="dashboard">
       <testing-repl></testing-repl>
+      <layout-resizer data-layout="dashboard" data-index="0" aria-label="Resize Testing REPL and side panels" title="Drag to resize · Double-click to reset"></layout-resizer>
       <div class="right-rail">
         <recent-tasks-panel></recent-tasks-panel>
+        <layout-resizer data-layout="right-rail" data-index="0" aria-label="Resize Recent tasks and Agent info" title="Drag to resize · Double-click to reset"></layout-resizer>
         <agent-info-panel></agent-info-panel>
+        <layout-resizer data-layout="right-rail" data-index="1" aria-label="Resize Agent info and Logs" title="Drag to resize · Double-click to reset"></layout-resizer>
         <worker-logs-panel></worker-logs-panel>
       </div>
     </div>

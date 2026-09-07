@@ -172,6 +172,7 @@ test("serves the testing console and redacted agent status", async (t) => {
   assert.match(page, /<agent-console-header><\/agent-console-header>/);
   assert.match(page, /<testing-repl><\/testing-repl>/);
   assert.match(page, /<recent-tasks-panel><\/recent-tasks-panel>/);
+  assert.match(page, /<layout-resizer data-layout="dashboard"/);
   assert.doesNotMatch(page, /<style>|<script>/);
 
   const styleResponse = await fetch(`${url}/styles.css`);
@@ -189,6 +190,11 @@ test("serves the testing console and redacted agent status", async (t) => {
   assert.equal(componentResponse.status, 200);
   assert.match(componentResponse.headers.get("content-type"), /text\/javascript/);
   assert.match(await componentResponse.text(), /defineComponent\("testing-repl"/);
+
+  const resizeResponse = await fetch(`${url}/lib/panel-resize.mjs`);
+  assert.equal(resizeResponse.status, 200);
+  assert.match(resizeResponse.headers.get("content-type"), /text\/javascript/);
+  assert.match(await resizeResponse.text(), /agent-worker\.panel-layout\.v1/);
 
   const statusResponse = await fetch(`${url}/api/status`);
   const status = await statusResponse.json();
