@@ -53,6 +53,34 @@ Example response:
 
 Use the returned `url` for task submission rather than constructing it when possible.
 
+### `GET /api/info`
+
+Returns the worker's identity, task submission URL, declared skills, enabled tools, MCP and
+workspace-artifact capabilities, and model configuration. The provider API key is never included.
+
+```json
+{
+  "name": "Coding Worker Agent",
+  "description": "Completes coding tasks in its configured workspace.",
+  "url": "https://worker.example.com/a2a",
+  "capabilities": {
+    "skills": [{
+      "id": "coding-task",
+      "name": "Coding Task",
+      "description": "Inspect, modify, and validate a software workspace."
+    }],
+    "tools": ["list_files", "read_file", "write_file", "search_files", "curl", "run_command"],
+    "mcp": false,
+    "workspaceArtifacts": true
+  },
+  "model": {
+    "provider": "openai",
+    "name": "gpt-5.1-codex",
+    "url": "https://api.openai.com/v1"
+  }
+}
+```
+
 ## Submit a task
 
 ### `POST /a2a`

@@ -216,6 +216,41 @@ test("returns the discoverable agent card", async (t) => {
   assert.equal(card.skills[0].id, "coding-task");
 });
 
+test("returns agent capabilities and redacted model information", async (t) => {
+  const { server, url } = await listeningServer({
+    env: {
+      PROVIDER_NAME: "custom",
+      PROVIDER_URL: "https://models.example/v1?api_key=url-secret",
+      PROVIDER_API_KEY: "do-not-expose",
+      PROVIDER_MODEL: "test-model",
+      WORKER_NAME: "Repository Worker",
+      WORKER_DESCRIPTION: "Builds and tests repository changes.",
+      WORKER_TOOLS: "read_file,write_file,run_command",
+      AI_HARNESS_MCP_SERVERS: "[]",
+    },
+    runTask: async () => "unused",
+  });
+  t.after(() => server.close());
+
+  const response = await fetch(`${url}/api/info`);
+  assert.equal(response.status, 200);
+  const info = await response.json();
+  assert.equal(info.name, "Repository Worker");
+  assert.equal(info.description, "Builds and tests repository changes.");
+  assert.equal(info.url, `${url}/a2a`);
+  assert.equal(info.capabilities.skills[0].id, "coding-task");
+  assert.deepEqual(info.capabilities.tools, ["read_file", "write_file", "run_command"]);
+  assert.equal(info.capabilities.mcp, true);
+  assert.equal(info.capabilities.workspaceArtifacts, true);
+  assert.deepEqual(info.model, {
+    provider: "custom",
+    name: "test-model",
+    url: "https://models.example/v1?api_key=%5Bredacted%5D",
+  });
+  assert.equal(JSON.stringify(info).includes("do-not-expose"), false);
+  assert.equal(JSON.stringify(info).includes("url-secret"), false);
+});
+
 test("serves the testing console and redacted agent status", async (t) => {
   const { server, url } = await listeningServer({
     env: {

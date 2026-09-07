@@ -21,8 +21,9 @@ npm start
 ```
 
 The server listens on `0.0.0.0:3000` by default. Open `/` for a browser testing REPL and live agent
-status. The agent card is available at `GET /.well-known/agent-card.json`; `GET /health` provides a
-minimal health check, while `GET /api/status` reports redacted configuration, queue, and task state.
+status. The agent card is available at `GET /.well-known/agent-card.json`; `GET /api/info` describes
+the agent's capabilities and model; `GET /health` provides a minimal health check; and
+`GET /api/status` reports redacted configuration, queue, and task state.
 Recent task history is persisted to `db/tasks.sqlite` by default, so the latest 50 tasks remain
 visible in the console after a restart. Override the location with `WORKER_TASK_DB`.
 
