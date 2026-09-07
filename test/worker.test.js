@@ -165,7 +165,20 @@ test("serves the testing console and redacted agent status", async (t) => {
   const pageResponse = await fetch(url);
   assert.equal(pageResponse.status, 200);
   assert.match(pageResponse.headers.get("content-type"), /text\/html/);
-  assert.match(await pageResponse.text(), /Agent Worker Console/);
+  const page = await pageResponse.text();
+  assert.match(page, /Agent Worker Console/);
+  assert.match(page, /<link rel="stylesheet" href="\/styles\.css">/);
+  assert.match(page, /<script type="module" src="\/app\.mjs"><\/script>/);
+  assert.doesNotMatch(page, /<style>|<script>/);
+
+  const styleResponse = await fetch(`${url}/styles.css`);
+  assert.equal(styleResponse.status, 200);
+  assert.match(styleResponse.headers.get("content-type"), /text\/css/);
+
+  const moduleResponse = await fetch(`${url}/app.mjs`);
+  assert.equal(moduleResponse.status, 200);
+  assert.match(moduleResponse.headers.get("content-type"), /text\/javascript/);
+  assert.match(await moduleResponse.text(), /from "\.\/lib\/api\.mjs"/);
 
   const statusResponse = await fetch(`${url}/api/status`);
   const status = await statusResponse.json();
