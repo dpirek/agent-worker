@@ -1,5 +1,7 @@
 # Agent Worker
 
+![Agent Worker Console](screenshots/console-redesign.png)
+
 An asynchronous coding worker built on the agentic harness in `lib/`. It accepts a task over HTTP,
 immediately acknowledges it, runs a fresh `CodingAgent`, and POSTs the final result back to the
 caller's callback URL.
