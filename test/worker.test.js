@@ -173,6 +173,7 @@ test("serves the testing console and redacted agent status", async (t) => {
   assert.match(page, /<testing-repl><\/testing-repl>/);
   assert.match(page, /<recent-tasks-panel><\/recent-tasks-panel>/);
   assert.match(page, /<layout-resizer data-layout="dashboard"/);
+  assert.match(page, /<body class="retro-pending">/);
   assert.doesNotMatch(page, /<style>|<script>/);
 
   const styleResponse = await fetch(`${url}/styles.css`);
@@ -202,6 +203,13 @@ test("serves the testing console and redacted agent status", async (t) => {
   assert.equal(minimizeResponse.status, 200);
   assert.match(minimizeResponse.headers.get("content-type"), /text\/javascript/);
   assert.match(await minimizeResponse.text(), /agent-worker\.minimized-panels\.v1/);
+
+  const revealResponse = await fetch(`${url}/lib/retro-reveal.mjs`);
+  assert.equal(revealResponse.status, 200);
+  assert.match(revealResponse.headers.get("content-type"), /text\/javascript/);
+  const revealModule = await revealResponse.text();
+  assert.match(revealModule, /HEADING_STEP_MS = 72/);
+  assert.match(revealModule, /textarea, button, \.panel-head, #health-text/);
 
   const statusResponse = await fetch(`${url}/api/status`);
   const status = await statusResponse.json();

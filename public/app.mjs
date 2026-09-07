@@ -2,6 +2,7 @@ import "./components/index.mjs";
 import { fetchStatus, fetchTask, submitTask } from "./lib/api.mjs";
 import { initPanelMinimizing } from "./lib/panel-minimize.mjs";
 import { initPanelResizing } from "./lib/panel-resize.mjs";
+import { revealInitialText } from "./lib/retro-reveal.mjs";
 import { createRenderer } from "./lib/render.mjs";
 
 const select = (selector) => document.querySelector(selector);
@@ -105,5 +106,10 @@ elements.statusDialog.addEventListener("click", (event) => {
   if (event.target === elements.statusDialog) elements.statusDialog.close();
 });
 
-refreshStatus();
-setInterval(refreshStatus, 2500);
+async function initialize() {
+  await refreshStatus();
+  await revealInitialText();
+  setInterval(refreshStatus, 2500);
+}
+
+void initialize();

@@ -34,6 +34,12 @@ body::after {
   background: repeating-linear-gradient(0deg, transparent 0 3px, #0000001a 3px 4px);
   mix-blend-mode: multiply;
 }
+.retro-pending .shell { visibility: hidden; animation: retro-load-failsafe .01s steps(1, end) 3s forwards; }
+.retro-text { display: inline; }
+.retro-char { opacity: 0; animation: retro-character-in .01s steps(1, end) var(--retro-delay) forwards; }
+.retro-text-slow .retro-char { text-shadow: 0 0 8px #edf1ef66; }
+@keyframes retro-character-in { to { opacity: 1; } }
+@keyframes retro-load-failsafe { to { visibility: visible; } }
 button, textarea { font: inherit; }
 button { color: inherit; cursor: pointer; }
 h1, h2, p { margin: 0; }
@@ -203,5 +209,7 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
   .log-row { gap: 7px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .retro-pending .shell { visibility: visible; animation: none; }
+  .retro-char { opacity: 1; animation: none; }
   .terminal-cursor { animation: none; }
 }
