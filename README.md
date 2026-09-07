@@ -9,7 +9,7 @@ For an integration contract that can be handed directly to another agent or orch
 
 ## Run
 
-Node.js 22 or newer is recommended (Node 20.6+ is required for `.env` loading).
+Node.js 22.5 or newer is required for the built-in SQLite task store.
 Copy the example configuration, edit it for the selected provider, and start the worker:
 
 ```sh
@@ -21,6 +21,8 @@ npm start
 The server listens on `0.0.0.0:3000` by default. Open `/` for a browser testing REPL and live agent
 status. The agent card is available at `GET /.well-known/agent-card.json`; `GET /health` provides a
 minimal health check, while `GET /api/status` reports redacted configuration, queue, and task state.
+Recent task history is persisted to `db/tasks.sqlite` by default, so the latest 50 tasks remain
+visible in the console after a restart. Override the location with `WORKER_TASK_DB`.
 
 All runtime configuration, provider options, callback settings, and tool permissions are listed in
 `.env.example`. It also includes editable copies of every default system prompt. Shell environment

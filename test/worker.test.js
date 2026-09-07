@@ -8,7 +8,10 @@ import test from "node:test";
 import { appendWorkspaceLinks, createWorkerServer, postCallback } from "../lib/worker.js";
 
 async function listeningServer(options) {
-  const server = createWorkerServer(options);
+  const server = createWorkerServer({
+    ...options,
+    env: { ...options?.env, WORKER_TASK_DB: options?.env?.WORKER_TASK_DB || ":memory:" },
+  });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const { port } = server.address();
@@ -195,6 +198,45 @@ test("runs a REPL task and exposes its final status", async (t) => {
   assert.equal(task.source, "repl");
   assert.equal(task.callbackDelivered, null);
   assert.equal(task.result.message.parts[0].text, "reply: test the agent");
+});
+
+test("persists recent task history across worker restarts", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "agent-worker-db-"));
+  const databasePath = path.join(directory, "tasks.sqlite");
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+
+  const first = await listeningServer({
+    env: { WORKER_TASK_DB: databasePath },
+    runTask: async (prompt) => `persisted: ${prompt}`,
+  });
+  const submitResponse = await fetch(`${first.url}/api/test`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ prompt: "remember this task" }),
+  });
+  const submitted = await submitResponse.json();
+
+  let task;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    task = (await (await fetch(`${first.url}/api/tasks/${submitted.taskId}`)).json()).task;
+    if (task?.state === "completed") break;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(task.state, "completed");
+  await new Promise((resolve, reject) => first.server.close((error) => error ? reject(error) : resolve()));
+
+  const second = await listeningServer({
+    env: { WORKER_TASK_DB: databasePath },
+    runTask: async () => "unused",
+  });
+  t.after(() => second.server.close());
+  const status = await (await fetch(`${second.url}/api/status`)).json();
+  assert.equal(status.tasks[0].taskId, submitted.taskId);
+  assert.equal(status.tasks[0].state, "completed");
+  assert.equal(status.tasks[0].result.message.parts[0].text, "persisted: remember this task");
+
+  const restored = await (await fetch(`${second.url}/api/tasks/${submitted.taskId}`)).json();
+  assert.equal(restored.task.result.message.parts[0].text, "persisted: remember this task");
 });
 
 test("serves workspace resources over HTTP", async (t) => {

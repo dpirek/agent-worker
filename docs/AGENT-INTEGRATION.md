@@ -213,6 +213,9 @@ Returns redacted agent identity, provider/model, workspace, enabled tools, syste
 MCP status, callback policy, queue counts, and the 50 most recent tasks. It never returns the
 provider API key, only `apiKeyConfigured: true|false`.
 
+Task history is stored in `db/tasks.sqlite` by default and survives worker restarts. A task that was
+still submitted or working when the worker stopped is restored as failed with `TASK_INTERRUPTED`.
+
 ### `GET /workspace/{path}`
 
 Serves a file from the agent's workspace with its detected content type. Paths in Markdown replies
