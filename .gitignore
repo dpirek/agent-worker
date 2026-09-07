@@ -5,3 +5,6 @@ npm-debug.log*
 db/*.sqlite
 db/*.sqlite-shm
 db/*.sqlite-wal
+
+# Apple
+.DS_Store

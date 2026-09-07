@@ -32,10 +32,11 @@ variables take precedence over values loaded from `.env`.
 
 The worker auto-approves only the tools named in `WORKER_TOOLS`, because no interactive user is
 present to answer approval prompts. Set `WORKER_TOOLS` explicitly to reduce its capabilities.
-Agent-created files and commands are isolated to `.workspace/` by default. The directory is created
-automatically when the server starts and is excluded from Git. Files in that directory are available
-at `GET /workspace/{workspace-relative-path}`. Agent replies use Markdown and include HTTP links for
-files created with the file-writing tool.
+Agent-created files and commands are isolated to a new `.workspace/{taskId}/` subfolder for every
+task. On successful completion, the worker saves the agent's final Markdown response as
+`.workspace/{taskId}/output.md`. It then packages the task folder as `.workspace/{taskId}.zip` and
+includes the ZIP as a file artifact in the terminal result. The task files and archive are available
+at `GET /workspace/{taskId}/{path}` and `GET /workspace/{taskId}.zip`, respectively.
 
 ## Send a task
 
@@ -68,10 +69,25 @@ When the task finishes, the callback receives `Authorization: Bearer <token>` an
   "message": {
     "messageId": "result-generated-uuid",
     "role": "agent",
-    "parts": [{ "kind": "text", "text": "The agent's final result." }]
-  }
+    "parts": [{ "kind": "text", "mimeType": "text/markdown", "text": "The agent's final result." }]
+  },
+  "artifacts": [{
+    "artifactId": "workspace-generated-uuid",
+    "name": "generated-uuid.zip",
+    "parts": [{
+      "kind": "file",
+      "file": {
+        "name": "generated-uuid.zip",
+        "mimeType": "application/zip",
+        "uri": "https://worker.example.com/workspace/generated-uuid.zip"
+      }
+    }],
+    "metadata": { "fileCount": 3, "size": 12480 }
+  }]
 }
 ```
 
-Failures are also sent to the callback with `status.state` set to `failed` and an `error` object.
-Callback delivery is attempted three times by default.
+The requester downloads the ZIP from `artifacts[0].parts[0].file.uri`. Failed tasks are also sent
+to the callback with `status.state` set to `failed` and an `error` object; when packaging succeeds,
+their partial workspace is handed off in the same artifact shape. Callback delivery is attempted
+three times by default.

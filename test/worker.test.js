@@ -8,10 +8,18 @@ import test from "node:test";
 import { appendWorkspaceLinks, createWorkerServer, postCallback } from "../lib/worker.js";
 
 async function listeningServer(options) {
+  const temporaryWorkspace = options?.env?.WORKER_WORKSPACE
+    ? null
+    : await fs.mkdtemp(path.join(os.tmpdir(), "agent-worker-workspace-"));
   const server = createWorkerServer({
     ...options,
-    env: { ...options?.env, WORKER_TASK_DB: options?.env?.WORKER_TASK_DB || ":memory:" },
+    env: {
+      ...options?.env,
+      WORKER_WORKSPACE: options?.env?.WORKER_WORKSPACE || temporaryWorkspace,
+      WORKER_TASK_DB: options?.env?.WORKER_TASK_DB || ":memory:",
+    },
   });
+  if (temporaryWorkspace) server.on("close", () => fs.rm(temporaryWorkspace, { recursive: true, force: true }));
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const { port } = server.address();
@@ -25,8 +33,13 @@ test("accepts a message and sends its result to the callback", async (t) => {
     resolveCallback({ url, request });
     return new Response(null, { status: 204 });
   };
+  let taskWorkspace;
   const { server, url } = await listeningServer({
-    runTask: async (prompt) => `finished: ${prompt}`,
+    runTask: async (prompt, context) => {
+      taskWorkspace = context.workspace;
+      await fs.writeFile(path.join(context.workspace, "result.txt"), "handoff contents", "utf8");
+      return `finished: ${prompt}`;
+    },
     callbackFetch,
   });
   t.after(() => server.close());
@@ -53,6 +66,59 @@ test("accepts a message and sends its result to the callback", async (t) => {
   assert.equal(result.status.state, "completed");
   assert.equal(result.message.parts[0].mimeType, "text/markdown");
   assert.equal(result.message.parts[0].text, "finished: Do the work");
+  assert.equal(path.basename(taskWorkspace), result.taskId);
+  assert.equal(result.artifacts.length, 1);
+  assert.equal(result.artifacts[0].artifactId, `workspace-${result.taskId}`);
+  assert.equal(result.artifacts[0].parts[0].kind, "file");
+  assert.equal(result.artifacts[0].parts[0].file.mimeType, "application/zip");
+  assert.equal(result.artifacts[0].parts[0].file.uri, `${url}/workspace/${result.taskId}.zip`);
+  assert.equal(result.artifacts[0].metadata.fileCount, 2);
+
+  assert.equal(await fs.readFile(path.join(taskWorkspace, "output.md"), "utf8"), "finished: Do the work");
+
+  const archiveResponse = await fetch(result.artifacts[0].parts[0].file.uri);
+  assert.equal(archiveResponse.status, 200);
+  assert.equal(archiveResponse.headers.get("content-type"), "application/zip");
+  const archive = Buffer.from(await archiveResponse.arrayBuffer());
+  assert.equal(archive.readUInt32LE(0), 0x04034b50);
+  assert.equal(archive.includes(Buffer.from("result.txt")), true);
+  assert.equal(archive.includes(Buffer.from("handoff contents")), true);
+  assert.equal(archive.includes(Buffer.from("output.md")), true);
+  assert.equal(archive.includes(Buffer.from("finished: Do the work")), true);
+});
+
+test("gives concurrent tasks different workspace subfolders", async (t) => {
+  const workspaces = [];
+  const callbacks = [];
+  let resolveCallbacks;
+  const callbacksReceived = new Promise((resolve) => { resolveCallbacks = resolve; });
+  const { server, url } = await listeningServer({
+    env: { WORKER_CONCURRENCY: "2" },
+    runTask: async (_prompt, context) => {
+      workspaces.push(context.workspace);
+      await fs.writeFile(path.join(context.workspace, "output.txt"), path.basename(context.workspace));
+      return "done";
+    },
+    callbackFetch: async (_callbackUrl, request) => {
+      callbacks.push(JSON.parse(request.body));
+      if (callbacks.length === 2) resolveCallbacks();
+      return new Response(null, { status: 204 });
+    },
+  });
+  t.after(() => server.close());
+
+  await Promise.all(["isolated-1", "isolated-2"].map((messageId) => fetch(`${url}/a2a`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      message: { messageId, parts: [{ kind: "text", text: "Run" }] },
+      callback: { url: "https://orchestrator.example/callback" },
+    }),
+  })));
+  await callbacksReceived;
+
+  assert.equal(new Set(workspaces).size, 2);
+  assert.equal(callbacks.every((result) => result.artifacts?.[0]?.parts?.[0]?.file?.uri.endsWith(`${result.taskId}.zip`)), true);
 });
 
 test("rejects malformed messages before queueing them", async (t) => {
@@ -92,6 +158,8 @@ test("reports agent failures through the callback", async (t) => {
   assert.equal(result.error.details.name, "Error");
   assert.match(result.error.details.stack, /model unavailable/);
   assert.match(result.message.parts[0].text, /model unavailable/);
+  assert.equal(result.artifacts[0].parts[0].file.mimeType, "application/zip");
+  assert.equal(result.artifacts[0].metadata.fileCount, 0);
 });
 
 test("reports callback network diagnostics after retries are exhausted", async () => {
@@ -242,6 +310,10 @@ test("runs a REPL task and exposes its final status", async (t) => {
   assert.equal(task.source, "repl");
   assert.equal(task.callbackDelivered, null);
   assert.equal(task.result.message.parts[0].text, "reply: test the agent");
+  assert.equal(task.archive.fileCount, 1);
+  const outputResponse = await fetch(`${url}/workspace/${submitted.taskId}/output.md`);
+  assert.equal(outputResponse.status, 200);
+  assert.equal(await outputResponse.text(), "reply: test the agent");
 });
 
 test("persists recent task history across worker restarts", async (t) => {
