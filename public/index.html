@@ -8,78 +8,17 @@
 </head>
 <body>
   <main class="shell">
-    <header class="topbar">
-      <div class="brand-mark" aria-hidden="true">›<span class="terminal-cursor">_</span></div>
-      <div class="brand-copy">
-        <h1>Agent Worker Console</h1>
-        <p class="subtitle" id="agent-description">Connecting to configured worker…</p>
-        <p class="subtitle-meta">v1.0.0 · Workspace <strong id="workspace-summary">—</strong></p>
-      </div>
-      <div class="header-actions">
-        <div class="live"><span class="dot" id="health-dot"></span><span id="health-text">Checking server</span></div>
-        <button class="icon-button" id="open-status" type="button" aria-label="Open agent status" title="Agent status">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-            <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M10 14v6"/>
-          </svg>
-        </button>
-      </div>
-    </header>
-
+    <agent-console-header></agent-console-header>
     <div class="dashboard">
-      <section class="panel repl-panel">
-        <div class="panel-head">
-          <div class="panel-title">
-            <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m8 5 7 7-7 7"/></svg>
-            <span class="head-rule"></span><h2>Testing REPL</h2>
-          </div>
-          <div class="panel-tools"><span class="badge" id="run-state">idle</span></div>
-        </div>
-        <div class="console" id="console"><div class="empty"><div class="empty-target">Send a task to exercise the configured agent.<br>Enter sends · Shift+Enter adds a new line.</div></div></div>
-        <form id="repl-form">
-          <textarea id="prompt" rows="1" aria-label="Task prompt" placeholder="Ask the worker to inspect, change, or explain something in its workspace…" required></textarea>
-          <div class="form-row">
-            <div class="task-indicator"><span class="task-orbit" aria-hidden="true"></span><span id="task-id">No active task</span></div>
-            <div class="panel-tools"><button class="send-button" id="send" type="submit"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m5 3 11 7-11 7Z"/></svg>Run task</button><span class="key-hint">↵</span></div>
-          </div>
-        </form>
-      </section>
-
+      <testing-repl></testing-repl>
       <div class="right-rail">
-        <section class="panel">
-          <div class="panel-head">
-            <div class="panel-title"><svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3Z"/><path d="M3 6V4h7l2 2"/></svg><span class="head-rule"></span><h2>Recent tasks</h2></div>
-            <div class="panel-tools"><span>Latest 50</span></div>
-          </div>
-          <div class="tasks"><table><thead><tr><th>Message</th><th>Source</th><th>Status</th><th>Callback</th><th>Created</th></tr></thead><tbody id="tasks"><tr><td class="empty-table" colspan="5">No tasks yet.</td></tr></tbody></table></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div class="panel-title"><svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg><span class="head-rule"></span><h2>Agent info</h2></div>
-          </div>
-          <div class="agent-info" id="agent-info"><div class="empty">Loading agent information…</div></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div class="panel-title"><svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h9l4 4v14H6Z"/><path d="M15 3v5h5M9 12h7M9 16h7"/></svg><span class="head-rule"></span><h2>Logs</h2></div>
-          </div>
-          <div class="logs" id="logs"><div class="log-row"><span>--:--:--</span><span>Waiting for worker status…</span></div></div>
-        </section>
+        <recent-tasks-panel></recent-tasks-panel>
+        <agent-info-panel></agent-info-panel>
+        <worker-logs-panel></worker-logs-panel>
       </div>
     </div>
   </main>
-
-  <dialog class="status-dialog" id="status-dialog" aria-labelledby="status-title">
-    <div class="panel-head">
-      <div class="dialog-title"><h2 id="status-title">Agent status</h2><span class="badge" id="queue-badge">0 active</span></div>
-      <button class="icon-button" id="close-status" type="button" aria-label="Close agent status" title="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <div class="status-body" id="status"><div class="empty">Loading configuration…</div></div>
-  </dialog>
-
+  <agent-status-dialog></agent-status-dialog>
   <script type="module" src="/app.mjs"></script>
 </body>
 </html>

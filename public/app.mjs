@@ -1,3 +1,4 @@
+import "./components/index.mjs";
 import { fetchStatus, fetchTask, submitTask } from "./lib/api.mjs";
 import { createRenderer } from "./lib/render.mjs";
 

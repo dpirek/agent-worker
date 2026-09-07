@@ -169,6 +169,9 @@ test("serves the testing console and redacted agent status", async (t) => {
   assert.match(page, /Agent Worker Console/);
   assert.match(page, /<link rel="stylesheet" href="\/styles\.css">/);
   assert.match(page, /<script type="module" src="\/app\.mjs"><\/script>/);
+  assert.match(page, /<agent-console-header><\/agent-console-header>/);
+  assert.match(page, /<testing-repl><\/testing-repl>/);
+  assert.match(page, /<recent-tasks-panel><\/recent-tasks-panel>/);
   assert.doesNotMatch(page, /<style>|<script>/);
 
   const styleResponse = await fetch(`${url}/styles.css`);
@@ -178,7 +181,14 @@ test("serves the testing console and redacted agent status", async (t) => {
   const moduleResponse = await fetch(`${url}/app.mjs`);
   assert.equal(moduleResponse.status, 200);
   assert.match(moduleResponse.headers.get("content-type"), /text\/javascript/);
-  assert.match(await moduleResponse.text(), /from "\.\/lib\/api\.mjs"/);
+  const module = await moduleResponse.text();
+  assert.match(module, /import "\.\/components\/index\.mjs"/);
+  assert.match(module, /from "\.\/lib\/api\.mjs"/);
+
+  const componentResponse = await fetch(`${url}/components/testing-repl.mjs`);
+  assert.equal(componentResponse.status, 200);
+  assert.match(componentResponse.headers.get("content-type"), /text\/javascript/);
+  assert.match(await componentResponse.text(), /defineComponent\("testing-repl"/);
 
   const statusResponse = await fetch(`${url}/api/status`);
   const status = await statusResponse.json();
