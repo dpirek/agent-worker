@@ -1,0 +1,33 @@
+version: "1"
+
+services:
+  developer:
+    env_file:
+      - ../.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: ${DEVELOPER_WORKER_PORT:-3003}
+
+      AI_HARNESS_OFFICE_URL: ${AI_HARNESS_OFFICE_URL:-ws://127.0.0.1:8080/ws/workers}
+      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN:?Set AI_HARNESS_WORKER_TOKEN in .env or the shell}
+
+      WORKER_NAME: ${DEVELOPER_WORKER_NAME:-Dave the Developer}
+      WORKER_DESCRIPTION: ${DEVELOPER_WORKER_DESCRIPTION:-Creates polished image-based designs and visual assets from Agent Office briefs.}
+      WORKER_PUBLIC_URL: ${DEVELOPER_WORKER_PUBLIC_URL:-http://127.0.0.1:3003}
+      WORKER_WORKSPACE: ${DEVELOPER_WORKER_WORKSPACE:-.workspace/developer}
+      WORKER_CONCURRENCY: ${DEVELOPER_WORKER_CONCURRENCY:-1}
+      WORKER_MAX_TURNS: ${DEVELOPER_WORKER_MAX_TURNS:-30}
+      WORKER_TOOLS: ${DEVELOPER_WORKER_TOOLS:-list_files,read_file,write_file,search_files,curl,run_command,generate_image,read_office_context}
+      WORKER_SKILLS: '[{"id":"image-design","name":"Image Design","description":"Turn creative briefs into production-ready image designs and visual assets."},{"id":"image-generation","name":"Image Generation","description":"Generate image deliverables with OpenAI GPT 5.4 Image 2 through OpenRouter."}]'
+      WORKER_TASK_DB: ${DEVELOPER_WORKER_TASK_DB:-db/developer.sqlite}
+      WORKER_RECONNECT_MIN_MS: ${DEVELOPER_WORKER_RECONNECT_MIN_MS:-1000}
+      WORKER_RECONNECT_MAX_MS: ${DEVELOPER_WORKER_RECONNECT_MAX_MS:-30000}
+      WORKER_HEARTBEAT_MS: ${DEVELOPER_WORKER_HEARTBEAT_MS:-30000}
+
+      AI_HARNESS_AGENT_INSTRUCTIONS: 'You are a node.js developer participating in AI Agent Office. Translate each development brief into working code or scripts. Write vanilla javascript code. Inspect relevant Office task summaries or full details with read_office_context when the request depends on earlier work. Use the appropriate tools to read, write, and search files, run commands, and interact with external APIs as needed. Ensure code quality, correctness, and adherence to best practices. Report progress and final deliverables clearly through the workspace.'
+      AI_HARNESS_RESPONSE_FORMAT: 'Return concise Markdown summarizing the implemented code, including file paths and descriptions of the changes made. Link every created or modified file using {{resource_base_url}} followed by its percent-encoded workspace-relative path.'
+
+      PROVIDER_NAME: openrouter
+      PROVIDER_URL: https://openrouter.ai/api/v1
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:?Set the OpenRouter PROVIDER_API_KEY in .env or the shell}
+      PROVIDER_MODEL: ${DEVELOPER_AGENT_MODEL:-deepseek/deepseek-v4-pro}

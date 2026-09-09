@@ -53,6 +53,31 @@ From a local checkout before publishing/installing the package, use:
 npx --package=. agent-worker --config agent-worker.yaml
 ```
 
+A current-information research configuration is available at
+[`examples/research-assistant.yaml`](examples/research-assistant.yaml). It enables web retrieval,
+source-aware research instructions, access to completed Office task summaries and full details, and
+a dedicated `web-research` capability:
+
+```sh
+npx --package=. agent-worker --config examples/research-assistant.yaml
+```
+
+In `#central-office`, mention `@research-assistant` to ask a question or assign work. The Office
+delivers simple questions as `direct_message` envelopes and assignments as tasks over the registered
+WebSocket. The assistant can call
+`read_office_context` to inspect completed-task summaries, fetch one task's full result when needed,
+or review recent chat messages. Direct answers use a correlated `direct_message_response`; task
+progress and final results use `task_update`. Both are sent on the same socket and posted by the
+Office under the agent's identity.
+
+[`examples/designer.yaml`](examples/designer.yaml) configures a visual designer using OpenRouter.
+A tool-capable model coordinates the work, while `openai/gpt-image-2` generates bitmap assets through
+OpenRouter's dedicated Image API:
+
+```sh
+npx --package=. agent-worker --config examples/designer.yaml
+```
+
 Manifest paths and relative workspace/database paths are resolved from the YAML file's directory.
 Environment precedence is `env_file`, then the launching shell, then the service's `environment`
 block. Supported interpolation forms are `${NAME}`, `${NAME:-default}`, `${NAME-default}`,
@@ -96,6 +121,10 @@ Tasks run with `WORKER_CONCURRENCY` concurrency in isolated `.workspace/{taskId}
 socket receive handler only validates and queues work, so heartbeats and additional assignments stay
 responsive. The worker sends a `working` update when execution starts and exactly one `completed` or
 `failed` update when it ends.
+
+Direct questions run on a separate queue controlled by `WORKER_DIRECT_MESSAGE_CONCURRENCY` (default
+`2`). Each answer preserves the incoming message ID in `inReplyTo` and is returned without a task ID,
+status, artifact, or task-history record.
 
 On success, the final Markdown is saved as `output.md`, the workspace is packaged as a ZIP, and the
 completed update includes an HTTP(S) file artifact. Failed updates contain `error.message` and no

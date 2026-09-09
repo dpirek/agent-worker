@@ -47,9 +47,10 @@ test("normalizes a bare office origin and rejects credentials in its URL", () =>
   assert.throws(() => officeWebSocketUrl("ws://office.example?token=secret"), /query parameters/);
 });
 
-test("registers first, receives tasks, and returns updates on the same socket", () => {
+test("registers first and handles tasks and direct messages on the same socket", () => {
   FakeWebSocket.instances.length = 0;
   const tasks = [];
+  const directMessages = [];
   const statuses = [];
   const connection = createOfficeConnection({
     url: "ws://office.example",
@@ -59,6 +60,7 @@ test("registers first, receives tasks, and returns updates on the same socket", 
     heartbeatMs: 60_000,
     onStatus(status) { statuses.push(status); },
     onTask(task, transport) { tasks.push({ task, transport }); },
+    onDirectMessage(message, transport) { directMessages.push({ message, transport }); },
   });
 
   connection.start();
@@ -79,6 +81,21 @@ test("registers first, receives tasks, and returns updates on the same socket", 
   tasks[0].transport.send({ type: "task_update", taskId: "task-1", status: { state: "working" } });
   assert.equal(socket.sent[1].type, "task_update");
   socket.emit("message", { data: JSON.stringify({ type: "task_update_ack", taskId: "task-1", state: "working" }) });
+
+  socket.emit("message", { data: JSON.stringify({
+    type: "direct_message",
+    message: { messageId: "direct-1", parts: [{ kind: "text", text: "Which version?" }] },
+  }) });
+  assert.equal(directMessages.length, 1);
+  assert.equal(directMessages[0].transport.connectionId, "connection-1");
+  directMessages[0].transport.send({
+    type: "direct_message_response",
+    inReplyTo: "direct-1",
+    message: { messageId: "reply-1", role: "agent", parts: [{ kind: "text", mimeType: "text/plain", text: "1.2.3" }] },
+  });
+  assert.equal(socket.sent[2].type, "direct_message_response");
+  socket.emit("message", { data: JSON.stringify({ type: "direct_message_ack", messageId: "direct-1", state: "completed" }) });
+  assert.equal(socket.readyState, FakeWebSocket.OPEN);
   assert.equal(statuses.at(-1).status, "connected");
   connection.stop();
 });

@@ -16,11 +16,18 @@ untrusted networks. HTTP task submission and completion callbacks are not suppor
 | `WORKER_RECONNECT_MIN_MS` | Initial reconnect delay; default `1000`. |
 | `WORKER_RECONNECT_MAX_MS` | Maximum reconnect delay; default `30000`. |
 | `WORKER_HEARTBEAT_MS` | Application heartbeat interval; default `30000`. |
+| `WORKER_DIRECT_MESSAGE_CONCURRENCY` | Concurrent direct-question responses; default `2`. |
 
 These values can be loaded directly from `.env` with `npm start`, or composed through
 `agent-worker.yaml` and launched with `npx agent-worker --config agent-worker.yaml`. YAML services
 support Docker-style `env_file`, `environment`, variable interpolation, and `--service` selection
 for manifests containing multiple worker instances.
+
+Workers with `read_office_context` enabled can read the Office's durable completed-task summaries,
+retrieve a task's full result by Office task ID, message ID, or worker task ID, and review recent
+Office chat. Simple questions addressed to a worker arrive as `direct_message` envelopes and return
+as correlated `direct_message_response` messages. Assignments continue to use tasks and
+`task_update` messages.
 
 ## Lifecycle
 
@@ -40,11 +47,21 @@ is sent and remains served by the worker HTTP process.
 Failed execution ends with exactly one `failed` update containing `error.message` and explanatory
 Markdown. Failed updates never include artifacts.
 
+## Direct questions
+
+After registration, the worker also accepts `direct_message` on the task socket. It extracts the
+incoming text, runs the agent outside the socket callback, and sends exactly one response with
+`inReplyTo` equal to the incoming `message.messageId`. The response contains non-empty plain text and
+does not contain `taskId`, status, or artifacts. Direct questions use a separate execution queue and
+temporary workspace; they do not create task-history records or publish deliverables. The worker
+accepts the Office's final `direct_message_ack` and remains connected for more work.
+
 ## Connection behavior
 
 - JSON text messages are limited to 2 MiB; binary application messages are rejected.
 - `{ "type": "ping" }` heartbeats are sent while connected; office `pong` replies are accepted.
 - `task_update_ack` confirms office acceptance but does not stop worker execution.
+- `direct_message_ack` confirms delivery of a direct answer.
 - Task execution is placed on the worker queue outside the socket message callback.
 - Closing a connection marks every unfinished task assigned to that connection failed locally.
 - Reconnection uses exponential backoff and creates a fresh registration. Old tasks are never resumed.

@@ -145,6 +145,7 @@ function createRenderer(elements) {
       ["MCP", data.execution.mcpConfigured ? "configured" : "not configured"],
       ["Office", data.orchestration.status],
       ["Office endpoint", data.orchestration.endpoint || "not configured"],
+      ["Direct messages", `${data.queue.directMessages?.active || 0} active · ${data.queue.directMessages?.queued || 0} queued`],
     ];
     elements.status.innerHTML = `<dl>${rows.map(([key, value, className]) => `<div class="row"><dt>${escapeHtml(key)}</dt><dd class="${className || ""}">${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
     elements.tasks.innerHTML = renderTaskRows(data.tasks);

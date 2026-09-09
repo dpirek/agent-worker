@@ -1,0 +1,31 @@
+version: "1"
+
+services:
+  designer:
+    env_file:
+      - ../.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: ${DESIGNER_WORKER_PORT:-3002}
+
+      AI_HARNESS_OFFICE_URL: ${AI_HARNESS_OFFICE_URL:-ws://127.0.0.1:8080/ws/workers}
+      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN:?Set AI_HARNESS_WORKER_TOKEN in .env or the shell}
+
+      WORKER_NAME: ${DESIGNER_WORKER_NAME:-Designer}
+      WORKER_DESCRIPTION: Creates visual concepts, polished bitmap assets, layouts, and design specifications for Agent Office projects.
+      WORKER_PUBLIC_URL: ${DESIGNER_WORKER_PUBLIC_URL:-http://127.0.0.1:3002}
+      WORKER_WORKSPACE: ../.workspace/designer
+      WORKER_TASK_DB: ../db/designer.sqlite
+      WORKER_CONCURRENCY: ${DESIGNER_WORKER_CONCURRENCY:-1}
+      WORKER_MAX_TURNS: ${DESIGNER_WORKER_MAX_TURNS:-20}
+      WORKER_TOOLS: list_files,read_file,write_file,generate_image,read_office_context
+      WORKER_SKILLS: '[{"id":"visual-design","name":"Visual Design","description":"Develop visual directions and generate production-ready bitmap design assets."},{"id":"image-generation","name":"Image Generation","description":"Generate high-fidelity images with OpenAI GPT Image 2 through OpenRouter."}]'
+
+      AI_HARNESS_AGENT_INSTRUCTIONS: 'You are a visual designer participating in AI Agent Office. Turn briefs into clear visual directions and production-ready assets. Inspect relevant completed Office work with read_office_context when the brief depends on prior decisions. Before generating an image, state the intended composition, hierarchy, palette, typography treatment, aspect ratio, and output purpose. Use generate_image for bitmap assets, with precise prompts and descriptive workspace paths under assets/. Preserve exact requested text and brand constraints. Review the tool result, report the generated dimensions or format when known, and include a workspace link in the final answer. Do not claim that an image was created unless generate_image succeeded.'
+      AI_HARNESS_RESPONSE_FORMAT: 'Return concise Markdown summarizing the design rationale and generated deliverables. Link every created asset using {{resource_base_url}} and its percent-encoded workspace-relative path.'
+
+      PROVIDER_NAME: openrouter
+      PROVIDER_URL: https://openrouter.ai/api/v1
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:?Set the OpenRouter PROVIDER_API_KEY in .env or the shell}
+      PROVIDER_MODEL: ${DESIGNER_AGENT_MODEL:-openai/gpt-5.6-sol}
+      OPENROUTER_IMAGE_MODEL: openai/gpt-image-2

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { appendWorkspaceLinks, createWorkerServer } from "../lib/worker.js";
+import { agentInfo, appendWorkspaceLinks, createWorkerServer } from "../lib/worker.js";
 
 function officeHarness() {
   let options;
@@ -23,9 +23,57 @@ function officeHarness() {
     deliver(payload) {
       options.onTask(payload, { connectionId: "connection-1", send(update) { sent.push(update); } });
     },
+    deliverDirect(payload) {
+      options.onDirectMessage(payload, { connectionId: "connection-1", send(response) { sent.push(response); } });
+    },
     disconnect(reason = "Office connection closed.") { options.onDisconnect("connection-1", reason); },
   };
 }
+
+test("answers a correlated direct message without creating a task", async (t) => {
+  const office = officeHarness();
+  let directWorkspace;
+  const { server, url } = await listeningServer({
+    env: { AI_HARNESS_OFFICE_URL: "ws://office.example", AI_HARNESS_WORKER_TOKEN: "secret" },
+    officeConnectionFactory: office.factory,
+    runTask: async (prompt, context) => {
+      directWorkspace = context.workspace;
+      return `Version 1.2.3 answers: ${prompt}`;
+    },
+  });
+  t.after(() => server.close());
+
+  office.deliverDirect({
+    type: "direct_message",
+    message: {
+      messageId: "direct-001",
+      role: "user",
+      parts: [{ kind: "text", mimeType: "text/plain", text: "What version are you using?" }],
+    },
+  });
+  for (let attempt = 0; attempt < 40 && office.sent.length < 1; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  assert.equal(office.sent.length, 1);
+  const response = office.sent[0];
+  assert.equal(response.type, "direct_message_response");
+  assert.equal(response.inReplyTo, "direct-001");
+  assert.match(response.message.messageId, /^reply-/);
+  assert.equal(response.message.role, "agent");
+  assert.deepEqual(response.message.parts, [{
+    kind: "text", mimeType: "text/plain", text: "Version 1.2.3 answers: What version are you using?",
+  }]);
+  assert.equal(response.taskId, undefined);
+  assert.equal(response.status, undefined);
+  assert.equal(response.artifacts, undefined);
+
+  const status = await (await fetch(`${url}/api/status`)).json();
+  assert.deepEqual(status.tasks, []);
+  assert.equal(status.queue.directMessages.active, 0);
+  assert.equal(path.basename(directWorkspace).startsWith(".direct-"), true);
+  await assert.rejects(fs.access(directWorkspace));
+});
 
 async function listeningServer(options) {
   const temporaryWorkspace = options?.env?.WORKER_WORKSPACE
@@ -188,7 +236,10 @@ test("marks in-flight work failed on disconnect and does not resume it", async (
     type: "task", taskId: "task-disconnected",
     message: { messageId: "msg-disconnected", parts: [{ kind: "text", text: "Run slowly" }] },
   });
-  for (let attempt = 0; attempt < 40 && office.sent.length < 1; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+  for (let attempt = 0; attempt < 40 && (office.sent.length < 1 || typeof finishTask !== "function"); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(typeof finishTask, "function");
   office.disconnect("Socket lost.");
   let task = (await (await fetch(`${url}/api/tasks/task-disconnected`)).json()).task;
   assert.equal(task.state, "failed");
@@ -220,6 +271,7 @@ test("returns agent capabilities and redacted model information", async (t) => {
       WORKER_NAME: "Repository Worker",
       WORKER_DESCRIPTION: "Builds and tests repository changes.",
       WORKER_TOOLS: "read_file,write_file,run_command",
+      WORKER_SKILLS: '[{"id":"research","name":"Research","description":"Research current information."}]',
       AI_HARNESS_MCP_SERVERS: "[]",
     },
     runTask: async () => "unused",
@@ -232,7 +284,9 @@ test("returns agent capabilities and redacted model information", async (t) => {
   assert.equal(info.name, "Repository Worker");
   assert.equal(info.description, "Builds and tests repository changes.");
   assert.equal(info.url, `${url.replace("http:", "ws:")}/agent`);
-  assert.equal(info.capabilities.skills[0].id, "coding-task");
+  assert.deepEqual(info.capabilities.skills, [{
+    id: "research", name: "Research", description: "Research current information.",
+  }]);
   assert.deepEqual(info.capabilities.tools, ["read_file", "write_file", "run_command"]);
   assert.equal(info.capabilities.mcp, true);
   assert.equal(info.capabilities.workspaceArtifacts, true);
@@ -243,6 +297,11 @@ test("returns agent capabilities and redacted model information", async (t) => {
   });
   assert.equal(JSON.stringify(info).includes("do-not-expose"), false);
   assert.equal(JSON.stringify(info).includes("url-secret"), false);
+});
+
+test("rejects malformed custom skill declarations", () => {
+  assert.throws(() => agentInfo("http://worker.example", { WORKER_SKILLS: "not-json" }), /JSON array/);
+  assert.throws(() => agentInfo("http://worker.example", { WORKER_SKILLS: "[{}]" }), /requires id, name, and description/);
 });
 
 test("serves the testing console and redacted agent status", async (t) => {

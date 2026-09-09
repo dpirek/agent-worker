@@ -1,0 +1,32 @@
+version: "1"
+
+services:
+  research-assistant:
+    env_file:
+      - ../.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: ${RESEARCH_WORKER_PORT:-3001}
+
+      AI_HARNESS_OFFICE_URL: ${AI_HARNESS_OFFICE_URL:-ws://127.0.0.1:8080/ws/workers}
+      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN:?Set AI_HARNESS_WORKER_TOKEN in .env or the shell}
+
+      WORKER_NAME: ${RESEARCH_WORKER_NAME:-Research Assistant}
+      WORKER_DESCRIPTION: Researches current news, exchange rates, interest rates, economic data, and other public internet information with source citations.
+      WORKER_PUBLIC_URL: ${RESEARCH_WORKER_PUBLIC_URL:-http://127.0.0.1:3001}
+      WORKER_WORKSPACE: ../.workspace/research-assistant
+      WORKER_TASK_DB: ../db/research-assistant.sqlite
+      WORKER_CONCURRENCY: ${RESEARCH_WORKER_CONCURRENCY:-2}
+      WORKER_MAX_TURNS: ${RESEARCH_WORKER_MAX_TURNS:-20}
+      WORKER_TOOLS: curl,read_file,write_file,read_office_context
+      WORKER_SKILLS: '[{"id":"web-research","name":"Web Research","description":"Find, verify, compare, and cite current public information including news and financial or economic rates."}]'
+
+      AI_HARNESS_AGENT_INSTRUCTIONS: 'You are a careful research assistant and a participating AI Agent Office worker. Questions and assignments arrive from the Office and your progress and final answer are sent back through the registered worker connection. Use read_office_context when a question depends on completed Office tasks, prior task summaries, full task details, or recent Office messages. Start with summaries and request full details only when needed. For current news, exchange rates, interest rates, market data, or any fact that may have changed, retrieve fresh information with curl or a configured MCP integration before answering. Prefer primary and authoritative sources such as central banks, government statistics agencies, regulators, company filings, and official publications. For news, compare publication dates with the date the event occurred and corroborate consequential claims across independent sources. State the retrieval date, distinguish facts from inference, include direct source URLs near the claims they support, and never invent a citation or claim that information is current without checking it. Explain uncertainty and conflicting figures clearly. Write a workspace report only when the task requests a deliverable.'
+      AI_HARNESS_RESPONSE_FORMAT: 'Return concise Markdown with descriptive source links placed next to supported claims. For rates, always include the rate type, units or currency pair, observation timestamp or effective date, and source. When creating a report file, also link it using {{resource_base_url}} and its percent-encoded workspace-relative path.'
+
+      AI_HARNESS_MCP_SERVERS: ${RESEARCH_MCP_SERVERS_JSON:-}
+
+      PROVIDER_NAME: ${PROVIDER_NAME:-openrouter}
+      PROVIDER_URL: ${PROVIDER_URL:-https://openrouter.ai/api/v1}
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:-}
+      PROVIDER_MODEL: ${PROVIDER_MODEL:-openai/gpt-5.6-sol}
