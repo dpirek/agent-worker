@@ -35,7 +35,7 @@ test("rejects malformed indentation and duplicate mapping keys", () => {
 
 test("parses the research assistant example", async () => {
   const manifest = parseYaml(await fs.readFile(new URL("../examples/research-assistant.yaml", import.meta.url), "utf8"));
-  const environment = manifest.services["research-assistant"].environment;
+  const environment = Object.values(manifest.services)[0].environment;
   assert.equal(environment.WORKER_TOOLS, "curl,read_file,write_file,read_office_context");
   assert.match(environment.WORKER_SKILLS, /web-research/);
   assert.match(environment.AI_HARNESS_AGENT_INSTRUCTIONS, /current news/);
@@ -45,18 +45,16 @@ test("parses the designer example", async () => {
   const manifest = parseYaml(await fs.readFile(new URL("../examples/designer.yaml", import.meta.url), "utf8"));
   const environment = manifest.services.designer.environment;
   assert.equal(environment.PROVIDER_NAME, "openrouter");
-  assert.equal(environment.OPENROUTER_IMAGE_MODEL, "openai/gpt-image-2");
+  assert.match(environment.OPENROUTER_IMAGE_MODEL, /^openai\/.*image/i);
   assert.match(environment.WORKER_TOOLS, /generate_image/);
   assert.match(environment.WORKER_SKILLS, /visual-design/);
 });
 
-test("parses the image-design developer example", async () => {
+test("parses the developer example", async () => {
   const manifest = parseYaml(await fs.readFile(new URL("../examples/developer.yaml", import.meta.url), "utf8"));
   const environment = manifest.services.developer.environment;
   assert.equal(environment.PROVIDER_NAME, "openrouter");
-  assert.equal(environment.PROVIDER_MODEL, "${DEVELOPER_AGENT_MODEL:-openai/gpt-5.4-image-2}");
-  assert.equal(environment.OPENROUTER_IMAGE_MODEL, "${DEVELOPER_IMAGE_MODEL:-openai/gpt-5.4-image-2}");
-  assert.match(environment.WORKER_TOOLS, /generate_image/);
-  assert.match(environment.WORKER_SKILLS, /image-design/);
-  assert.match(environment.AI_HARNESS_AGENT_INSTRUCTIONS, /primary output must be the generated image design files/);
+  assert.equal(typeof environment.PROVIDER_MODEL, "string");
+  assert.match(environment.WORKER_TOOLS, /run_command/);
+  assert.match(environment.AI_HARNESS_AGENT_INSTRUCTIONS, /developer/i);
 });

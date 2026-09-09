@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { agentInfo, appendWorkspaceLinks, createWorkerServer } from "../lib/worker.js";
+import { agentInfo, appendWorkspaceLinks, createWorkerServer, stopTaskCommand } from "../lib/worker.js";
 
 function officeHarness() {
   let options;
@@ -73,6 +73,98 @@ test("answers a correlated direct message without creating a task", async (t) =>
   assert.equal(status.queue.directMessages.active, 0);
   assert.equal(path.basename(directWorkspace).startsWith(".direct-"), true);
   await assert.rejects(fs.access(directWorkspace));
+});
+
+test("recognizes Office stop commands", () => {
+  assert.deepEqual(stopTaskCommand("@dave can you stop the current task?"), { mode: "current" });
+  assert.deepEqual(stopTaskCommand("please cancel all tasks"), { mode: "all" });
+  assert.deepEqual(stopTaskCommand("abort task task-123"), { mode: "id", target: "task-123" });
+  assert.equal(stopTaskCommand("What is the task status?"), null);
+});
+
+test("stops an ongoing task when asked by direct Office message", async (t) => {
+  const office = officeHarness();
+  let taskSignal;
+  const { server, url } = await listeningServer({
+    env: { AI_HARNESS_OFFICE_URL: "ws://office.example", AI_HARNESS_WORKER_TOKEN: "secret" },
+    officeConnectionFactory: office.factory,
+    runTask: async (_prompt, context) => {
+      taskSignal = context.signal;
+      return new Promise((_resolve, reject) => {
+        context.signal.addEventListener("abort", () => reject(context.signal.reason), { once: true });
+      });
+    },
+  });
+  t.after(() => server.close());
+
+  office.deliver({
+    type: "task", taskId: "task-stop-me",
+    message: { messageId: "msg-stop-me", parts: [{ kind: "text", text: "Keep working" }] },
+  });
+  for (let attempt = 0; attempt < 40 && (!taskSignal || office.sent.length < 1); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(taskSignal.aborted, false);
+
+  office.deliverDirect({
+    type: "direct_message",
+    message: {
+      messageId: "direct-stop",
+      role: "user",
+      parts: [{ kind: "text", mimeType: "text/plain", text: "@dave can you stop task task-stop-me?" }],
+    },
+  });
+  for (let attempt = 0; attempt < 40 && office.sent.length < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  assert.equal(taskSignal.aborted, true);
+  const stopped = office.sent.find((message) => message.taskId === "task-stop-me" && message.status?.state === "failed");
+  assert.equal(stopped.error.code, "TASK_STOPPED");
+  assert.equal(stopped.artifacts, undefined);
+  const answer = office.sent.find((message) => message.type === "direct_message_response");
+  assert.equal(answer.inReplyTo, "direct-stop");
+  assert.equal(answer.message.parts[0].text, "Stopped task task-stop-me.");
+
+  const task = (await (await fetch(`${url}/api/tasks/task-stop-me`)).json()).task;
+  assert.equal(task.state, "failed");
+  assert.equal(task.result.error.code, "TASK_STOPPED");
+  assert.equal(office.sent.some((message) => message.taskId === "task-stop-me" && message.status?.state === "completed"), false);
+});
+
+test("handles an imperative stop message as a control task", async (t) => {
+  const office = officeHarness();
+  let taskSignal;
+  const { server } = await listeningServer({
+    env: { AI_HARNESS_OFFICE_URL: "ws://office.example", AI_HARNESS_WORKER_TOKEN: "secret" },
+    officeConnectionFactory: office.factory,
+    runTask: async (_prompt, context) => {
+      taskSignal = context.signal;
+      return new Promise((_resolve, reject) => {
+        context.signal.addEventListener("abort", () => reject(context.signal.reason), { once: true });
+      });
+    },
+  });
+  t.after(() => server.close());
+
+  office.deliver({
+    type: "task", taskId: "task-running",
+    message: { messageId: "msg-running", parts: [{ kind: "text", text: "Keep working" }] },
+  });
+  for (let attempt = 0; attempt < 40 && !taskSignal; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  office.deliver({
+    type: "task", taskId: "task-control",
+    message: { messageId: "msg-control", parts: [{ kind: "text", text: "Stop the current task" }] },
+  });
+
+  assert.equal(taskSignal.aborted, true);
+  assert.equal(office.sent.filter((message) => message.taskId === "task-running" && message.status?.state === "failed").length, 1);
+  const controlUpdates = office.sent.filter((message) => message.taskId === "task-control");
+  assert.deepEqual(controlUpdates.map((message) => message.status.state), ["working", "completed"]);
+  assert.equal(controlUpdates[1].message.parts[0].text, "Stopped task task-running.");
+  assert.equal(controlUpdates[1].artifacts, undefined);
 });
 
 async function listeningServer(options) {

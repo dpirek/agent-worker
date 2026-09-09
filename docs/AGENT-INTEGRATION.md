@@ -56,6 +56,20 @@ does not contain `taskId`, status, or artifacts. Direct questions use a separate
 temporary workspace; they do not create task-history records or publish deliverables. The worker
 accepts the Office's final `direct_message_ack` and remains connected for more work.
 
+## Stopping work by message
+
+The worker intercepts these commands before invoking the model:
+
+- `stop current task` when exactly one task is active;
+- `stop task TASK_ID` (a message ID is also accepted);
+- `stop all tasks`.
+
+`cancel` and `abort` are aliases for `stop`, and conversational forms such as “can you stop the
+current task?” are accepted. Commands work as direct messages or task assignments. If `current` is
+ambiguous, the worker returns the active task IDs instead of guessing. Each stopped task sends one
+final `failed` update with `error.code` set to `TASK_STOPPED`, aborts active model requests and
+cooperative built-in tools, and suppresses late results and deliverables.
+
 ## Connection behavior
 
 - JSON text messages are limited to 2 MiB; binary application messages are rejected.

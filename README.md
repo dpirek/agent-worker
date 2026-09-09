@@ -126,6 +126,13 @@ Direct questions run on a separate queue controlled by `WORKER_DIRECT_MESSAGE_CO
 `2`). Each answer preserves the incoming message ID in `inReplyTo` and is returned without a task ID,
 status, artifact, or task-history record.
 
+An Office message can stop work with `stop current task`, `stop task TASK_ID`, or `stop all tasks`;
+`cancel` and `abort` are accepted aliases. Question phrasing such as
+`@agent-name can you stop the current task?` works through the direct-message channel, while an
+imperative stop assignment is handled as a control task. A stopped task immediately reports
+`failed` with error code `TASK_STOPPED`, aborts cooperative model/tool operations, and never publishes
+a late completion or artifacts.
+
 On success, the final Markdown is saved as `output.md`, the workspace is packaged as a ZIP, and the
 completed update includes an HTTP(S) file artifact. Failed updates contain `error.message` and no
 deliverables.
