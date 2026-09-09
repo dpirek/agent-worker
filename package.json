@@ -1,8 +1,11 @@
 {
   "name": "agent-worker",
   "version": "1.0.0",
-  "description": "",
+  "description": "Persistent WebSocket coding worker for AI Agent Office",
   "main": "server.js",
+  "bin": {
+    "agent-worker": "bin/agent-worker.js"
+  },
   "scripts": {
     "start": "node server.js",
     "test": "node --test"

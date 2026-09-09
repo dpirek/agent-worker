@@ -1,0 +1,29 @@
+version: "1"
+
+services:
+  developer:
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+
+      AI_HARNESS_OFFICE_URL: ${AI_HARNESS_OFFICE_URL:-ws://127.0.0.1:8080/ws/workers}
+      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN:?Set AI_HARNESS_WORKER_TOKEN in .env or the shell}
+
+      WORKER_NAME: ${WORKER_NAME:-Dave the Developer}
+      WORKER_DESCRIPTION: ${WORKER_DESCRIPTION:-Completes coding tasks in its configured workspace.}
+      WORKER_PUBLIC_URL: ${WORKER_PUBLIC_URL:-http://127.0.0.1:3000}
+      WORKER_WORKSPACE: ${WORKER_WORKSPACE:-.workspace}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      WORKER_MAX_TURNS: ${WORKER_MAX_TURNS:-30}
+      WORKER_TOOLS: ${WORKER_TOOLS:-list_files,read_file,write_file,search_files,curl,run_command}
+      WORKER_TASK_DB: ${WORKER_TASK_DB:-db/tasks.sqlite}
+      WORKER_RECONNECT_MIN_MS: ${WORKER_RECONNECT_MIN_MS:-1000}
+      WORKER_RECONNECT_MAX_MS: ${WORKER_RECONNECT_MAX_MS:-30000}
+      WORKER_HEARTBEAT_MS: ${WORKER_HEARTBEAT_MS:-30000}
+
+      PROVIDER_NAME: ${PROVIDER_NAME:-ollama-local}
+      PROVIDER_URL: ${PROVIDER_URL:-http://127.0.0.1:11434}
+      PROVIDER_API_KEY: ${PROVIDER_API_KEY:-}
+      PROVIDER_MODEL: ${PROVIDER_MODEL:-qwen3-coder:30b}

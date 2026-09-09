@@ -1,5 +1,21 @@
 import { escapeHtml, formatTime } from "./format.mjs";
 
+function officeHeaderStatus(orchestration = {}) {
+  if (orchestration.status === "connected") {
+    return { className: "dot ok", text: "Agent connected to office" };
+  }
+  if (orchestration.status === "configuration_error" || orchestration.status === "replaced") {
+    return { className: "dot bad", text: `Office ${orchestration.status.replace("_", " ")}` };
+  }
+  if (orchestration.status === "disabled") {
+    return { className: "dot", text: "Office not configured" };
+  }
+  if (["connecting", "registering", "reconnecting"].includes(orchestration.status)) {
+    return { className: "dot", text: `Agent ${orchestration.status} to office` };
+  }
+  return { className: "dot", text: "Agent disconnected from office" };
+}
+
 function createRenderer(elements) {
   const expandedTasks = new Set();
 
@@ -54,21 +70,19 @@ function createRenderer(elements) {
     return tasks.map((task, index) => {
       const expanded = expandedTasks.has(task.taskId);
       const detailsId = `task-details-${index}`;
-      const callbackState = task.callbackDelivered === null
-        ? "—"
-        : task.callbackDelivered ? "delivered" : task.callbackError ? "failed" : "pending";
+      const deliveryState = task.deliveryError ? "failed" : ["completed", "failed"].includes(task.state) ? "final" : "pending";
       const errorDetails = task.errorDetails || task.result?.error?.details;
       const failure = task.state === "failed"
         ? taskDetail("Error", task.error || task.result?.error?.message || "No error details were provided.", "task-error") + diagnosticDetails(errorDetails)
         : "";
-      const callbackError = task.callbackError
-        ? taskDetail("Callback error", task.callbackError, "task-error") + diagnosticDetails(task.callbackErrorDetails, "Callback ")
+      const deliveryError = task.deliveryError
+        ? taskDetail("Socket delivery error", task.deliveryError, "task-error")
         : "";
       return `<tr class="task-row" data-task-id="${escapeHtml(task.taskId)}">
         <td title="${escapeHtml(task.messageId)}"><button type="button" class="task-toggle" aria-expanded="${expanded}" aria-controls="${detailsId}"><span class="chevron" aria-hidden="true">›</span><span class="message-id">${escapeHtml(task.messageId)}</span></button></td>
         <td>${escapeHtml(task.source)}</td>
         <td class="state-${escapeHtml(task.state)}">${escapeHtml(task.state)}</td>
-        <td>${callbackState}</td>
+        <td>${deliveryState}</td>
         <td>${escapeHtml(formatTime(task.createdAt))}</td>
       </tr><tr id="${detailsId}" class="task-details-row"${expanded ? "" : " hidden"}>
         <td colspan="5" class="task-details-cell"><div class="task-details">
@@ -76,7 +90,7 @@ function createRenderer(elements) {
           ${taskDetail("Message ID", task.messageId)}
           ${taskDetail("Started", task.startedAt ? new Date(task.startedAt).toLocaleString() : "—")}
           ${taskDetail("Finished", task.finishedAt ? new Date(task.finishedAt).toLocaleString() : "—")}
-          ${failure}${callbackError}
+          ${failure}${deliveryError}
         </div></td>
       </tr>`;
     }).join("");
@@ -114,8 +128,9 @@ function createRenderer(elements) {
   }
 
   function renderStatus(data) {
-    elements.healthDot.className = "dot ok";
-    elements.healthText.textContent = "Server online";
+    const headerStatus = officeHeaderStatus(data.orchestration);
+    elements.healthDot.className = headerStatus.className;
+    elements.healthText.textContent = headerStatus.text;
     elements.agentDescription.textContent = `${data.agent.name} — ${data.agent.description}`;
     elements.workspaceSummary.textContent = data.execution.workspace;
     elements.workspaceSummary.title = data.execution.workspace;
@@ -128,7 +143,8 @@ function createRenderer(elements) {
       ["Max turns", data.execution.maxTurns], ["Tools", data.execution.tools.join(", ") || "none"],
       ["Prompts", data.execution.systemPromptOverrides.join(", ") || "built-in defaults"],
       ["MCP", data.execution.mcpConfigured ? "configured" : "not configured"],
-      ["Callbacks", `${data.callback.retries} attempts / ${data.callback.timeoutMs}ms`],
+      ["Office", data.orchestration.status],
+      ["Office endpoint", data.orchestration.endpoint || "not configured"],
     ];
     elements.status.innerHTML = `<dl>${rows.map(([key, value, className]) => `<div class="row"><dt>${escapeHtml(key)}</dt><dd class="${className || ""}">${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
     elements.tasks.innerHTML = renderTaskRows(data.tasks);
@@ -155,4 +171,4 @@ function createRenderer(elements) {
   return { addMessage, renderOffline, renderStatus, toggleTask };
 }
 
-export { createRenderer };
+export { createRenderer, officeHeaderStatus };

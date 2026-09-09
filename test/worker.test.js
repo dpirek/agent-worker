@@ -5,7 +5,27 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { appendWorkspaceLinks, createWorkerServer, postCallback } from "../lib/worker.js";
+import { appendWorkspaceLinks, createWorkerServer } from "../lib/worker.js";
+
+function officeHarness() {
+  let options;
+  const sent = [];
+  return {
+    sent,
+    factory(nextOptions) {
+      options = nextOptions;
+      return {
+        start() { options.onStatus({ status: "connected", endpoint: options.url, connectionId: "connection-1" }); },
+        stop() {},
+      };
+    },
+    registration() { return options; },
+    deliver(payload) {
+      options.onTask(payload, { connectionId: "connection-1", send(update) { sent.push(update); } });
+    },
+    disconnect(reason = "Office connection closed.") { options.onDisconnect("connection-1", reason); },
+  };
+}
 
 async function listeningServer(options) {
   const temporaryWorkspace = options?.env?.WORKER_WORKSPACE
@@ -26,42 +46,43 @@ async function listeningServer(options) {
   return { server, url: `http://127.0.0.1:${port}` };
 }
 
-test("accepts a message and sends its result to the callback", async (t) => {
-  let resolveCallback;
-  const callbackReceived = new Promise((resolve) => { resolveCallback = resolve; });
-  const callbackFetch = async (url, request) => {
-    resolveCallback({ url, request });
-    return new Response(null, { status: 204 });
-  };
+test("registers with the office and completes a delivered WebSocket task", async (t) => {
+  const office = officeHarness();
   let taskWorkspace;
   const { server, url } = await listeningServer({
+    env: {
+      AI_HARNESS_OFFICE_URL: "ws://office.example:8080",
+      AI_HARNESS_WORKER_TOKEN: "shared-secret",
+      WORKER_NAME: "Repository Worker",
+    },
+    officeConnectionFactory: office.factory,
     runTask: async (prompt, context) => {
       taskWorkspace = context.workspace;
       await fs.writeFile(path.join(context.workspace, "result.txt"), "handoff contents", "utf8");
       return `finished: ${prompt}`;
     },
-    callbackFetch,
   });
   t.after(() => server.close());
 
-  const response = await fetch(`${url}/a2a`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      message: { messageId: "msg-001", role: "user", parts: [{ kind: "text", text: "Do the work" }] },
-      callback: { url: "https://orchestrator.example/callback", token: "secret" },
-    }),
+  assert.equal(office.registration().url, "ws://office.example:8080");
+  assert.equal(office.registration().token, "shared-secret");
+  assert.equal(office.registration().worker.name, "Repository Worker");
+  assert.equal(office.registration().worker.url, `${url.replace("http:", "ws:")}/agent`);
+  office.deliver({
+    type: "task",
+    taskId: "task-001",
+    priority: "high",
+    message: { messageId: "msg-001", role: "manager", parts: [{ kind: "text", text: "Do the work" }] },
   });
 
-  assert.equal(response.status, 202);
-  const accepted = await response.json();
-  assert.equal(accepted.accepted, true);
-  assert.equal(accepted.messageId, "msg-001");
-
-  const delivered = await callbackReceived;
-  assert.equal(delivered.url, "https://orchestrator.example/callback");
-  assert.equal(delivered.request.headers.authorization, "Bearer secret");
-  const result = JSON.parse(delivered.request.body);
+  for (let attempt = 0; attempt < 40 && office.sent.length < 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(office.sent[0].type, "task_update");
+  assert.equal(office.sent[0].status.state, "working");
+  const result = office.sent[1];
+  assert.equal(result.type, "task_update");
+  assert.equal(result.taskId, "task-001");
   assert.equal(result.inReplyTo, "msg-001");
   assert.equal(result.status.state, "completed");
   assert.equal(result.message.parts[0].mimeType, "text/markdown");
@@ -71,7 +92,7 @@ test("accepts a message and sends its result to the callback", async (t) => {
   assert.equal(result.artifacts[0].artifactId, `workspace-${result.taskId}`);
   assert.equal(result.artifacts[0].parts[0].kind, "file");
   assert.equal(result.artifacts[0].parts[0].file.mimeType, "application/zip");
-  assert.equal(result.artifacts[0].parts[0].file.uri, `${url}/workspace/${result.taskId}.zip`);
+  assert.equal(result.artifacts[0].parts[0].file.uri, `${url}/workspace/task-001.zip`);
   assert.equal(result.artifacts[0].metadata.fileCount, 2);
 
   assert.equal(await fs.readFile(path.join(taskWorkspace, "output.md"), "utf8"), "finished: Do the work");
@@ -87,123 +108,96 @@ test("accepts a message and sends its result to the callback", async (t) => {
   assert.equal(archive.includes(Buffer.from("finished: Do the work")), true);
 });
 
-test("gives concurrent tasks different workspace subfolders", async (t) => {
+test("gives concurrent office tasks different workspace subfolders", async (t) => {
+  const office = officeHarness();
   const workspaces = [];
-  const callbacks = [];
-  let resolveCallbacks;
-  const callbacksReceived = new Promise((resolve) => { resolveCallbacks = resolve; });
   const { server, url } = await listeningServer({
-    env: { WORKER_CONCURRENCY: "2" },
+    env: {
+      WORKER_CONCURRENCY: "2",
+      AI_HARNESS_OFFICE_URL: "ws://office.example/ws/workers",
+      AI_HARNESS_WORKER_TOKEN: "secret",
+    },
+    officeConnectionFactory: office.factory,
     runTask: async (_prompt, context) => {
       workspaces.push(context.workspace);
       await fs.writeFile(path.join(context.workspace, "output.txt"), path.basename(context.workspace));
       return "done";
     },
-    callbackFetch: async (_callbackUrl, request) => {
-      callbacks.push(JSON.parse(request.body));
-      if (callbacks.length === 2) resolveCallbacks();
-      return new Response(null, { status: 204 });
-    },
   });
   t.after(() => server.close());
 
-  await Promise.all(["isolated-1", "isolated-2"].map((messageId) => fetch(`${url}/a2a`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      message: { messageId, parts: [{ kind: "text", text: "Run" }] },
-      callback: { url: "https://orchestrator.example/callback" },
-    }),
-  })));
-  await callbacksReceived;
+  for (const id of ["1", "2"]) office.deliver({
+    type: "task", taskId: `task-${id}`,
+    message: { messageId: `message-${id}`, parts: [{ kind: "text", text: "Run" }] },
+  });
+  for (let attempt = 0; attempt < 40 && office.sent.filter((item) => item.status.state === "completed").length < 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 
   assert.equal(new Set(workspaces).size, 2);
-  assert.equal(callbacks.every((result) => result.artifacts?.[0]?.parts?.[0]?.file?.uri.endsWith(`${result.taskId}.zip`)), true);
+  assert.equal(office.sent.filter((item) => item.status.state === "completed")
+    .every((result) => result.artifacts[0].parts[0].file.uri.endsWith(`${result.taskId}.zip`)), true);
+  assert.match(url, /^http:/);
 });
 
-test("rejects malformed messages before queueing them", async (t) => {
+test("does not expose the removed HTTP task endpoint", async (t) => {
   const { server, url } = await listeningServer({ runTask: async () => "unused" });
   t.after(() => server.close());
   const response = await fetch(`${url}/a2a`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message: { messageId: "msg-002", parts: [] } }),
+    body: JSON.stringify({ message: { messageId: "msg-002", parts: [{ kind: "text", text: "Run" }] } }),
   });
-  assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /parts/);
+  assert.equal(response.status, 404);
 });
 
-test("reports agent failures through the callback", async (t) => {
-  let resolveCallback;
-  const callbackReceived = new Promise((resolve) => { resolveCallback = resolve; });
+test("reports agent failures without deliverables over the task socket", async (t) => {
+  const office = officeHarness();
   const { server, url } = await listeningServer({
+    env: { AI_HARNESS_OFFICE_URL: "ws://office.example", AI_HARNESS_WORKER_TOKEN: "secret" },
+    officeConnectionFactory: office.factory,
     runTask: async () => { throw new Error("model unavailable"); },
-    callbackFetch: async (_url, request) => {
-      resolveCallback(JSON.parse(request.body));
-      return new Response(null, { status: 204 });
-    },
   });
   t.after(() => server.close());
 
-  const response = await fetch(`${url}/a2a`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      message: { messageId: "msg-failure", parts: [{ kind: "text", text: "Run" }] },
-      callback: { url: "https://orchestrator.example/callback" },
-    }),
+  office.deliver({
+    type: "task", taskId: "task-failure",
+    message: { messageId: "msg-failure", parts: [{ kind: "text", text: "Run" }] },
   });
-  assert.equal(response.status, 202);
-  const result = await callbackReceived;
+  for (let attempt = 0; attempt < 40 && office.sent.length < 2; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+  const result = office.sent[1];
   assert.equal(result.status.state, "failed");
   assert.equal(result.error.code, "TASK_FAILED");
   assert.equal(result.error.details.name, "Error");
   assert.match(result.error.details.stack, /model unavailable/);
   assert.match(result.message.parts[0].text, /model unavailable/);
-  assert.equal(result.artifacts[0].parts[0].file.mimeType, "application/zip");
-  assert.equal(result.artifacts[0].metadata.fileCount, 0);
+  assert.equal(result.artifacts, undefined);
+  assert.match(url, /^http:/);
 });
 
-test("reports callback network diagnostics after retries are exhausted", async () => {
-  const cause = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:9000"), {
-    code: "ECONNREFUSED",
-    address: "127.0.0.1",
-    port: 9000,
+test("marks in-flight work failed on disconnect and does not resume it", async (t) => {
+  const office = officeHarness();
+  let finishTask;
+  const { server, url } = await listeningServer({
+    env: { AI_HARNESS_OFFICE_URL: "ws://office.example", AI_HARNESS_WORKER_TOKEN: "secret" },
+    officeConnectionFactory: office.factory,
+    runTask: async () => new Promise((resolve) => { finishTask = resolve; }),
   });
-  const job = { callback: { url: "http://127.0.0.1:9000/callback", token: "secret" } };
+  t.after(() => server.close());
 
-  await assert.rejects(
-    postCallback(job, { ok: true }, {
-      retries: 2,
-      timeoutMs: 100,
-      async fetchImpl() { throw new TypeError("fetch failed", { cause }); },
-    }),
-    (error) => {
-      assert.equal(error.details.request.method, "POST");
-      assert.equal(error.details.request.url, "http://127.0.0.1:9000/callback");
-      assert.equal(error.details.request.attempt, 2);
-      assert.equal(error.details.response, null);
-      assert.equal(error.details.cause.cause.code, "ECONNREFUSED");
-      assert.match(error.stack, /CallbackRequestError/);
-      return true;
-    },
-  );
-});
-
-test("reports callback HTTP response details", async () => {
-  const job = { callback: { url: "https://orchestrator.example/callback", token: "secret" } };
-  await assert.rejects(
-    postCallback(job, { ok: true }, {
-      retries: 1,
-      async fetchImpl() {
-        return new Response("gateway unavailable", { status: 502, statusText: "Bad Gateway" });
-      },
-    }),
-    (error) => {
-      assert.equal(error.details.response.status, 502);
-      assert.equal(error.details.response.statusText, "Bad Gateway");
-      assert.equal(error.details.response.body, "gateway unavailable");
-      return true;
-    },
-  );
+  office.deliver({
+    type: "task", taskId: "task-disconnected",
+    message: { messageId: "msg-disconnected", parts: [{ kind: "text", text: "Run slowly" }] },
+  });
+  for (let attempt = 0; attempt < 40 && office.sent.length < 1; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+  office.disconnect("Socket lost.");
+  let task = (await (await fetch(`${url}/api/tasks/task-disconnected`)).json()).task;
+  assert.equal(task.state, "failed");
+  assert.equal(task.error, "Socket lost.");
+  finishTask("late result");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  task = (await (await fetch(`${url}/api/tasks/task-disconnected`)).json()).task;
+  assert.equal(task.state, "failed");
+  assert.equal(office.sent.length, 1);
 });
 
 test("returns the discoverable agent card", async (t) => {
@@ -212,7 +206,7 @@ test("returns the discoverable agent card", async (t) => {
   const response = await fetch(`${url}/.well-known/agent-card.json`);
   assert.equal(response.status, 200);
   const card = await response.json();
-  assert.equal(card.url, `${url}/a2a`);
+  assert.equal(card.url, `${url.replace("http:", "ws:")}/agent`);
   assert.equal(card.skills[0].id, "coding-task");
 });
 
@@ -237,7 +231,7 @@ test("returns agent capabilities and redacted model information", async (t) => {
   const info = await response.json();
   assert.equal(info.name, "Repository Worker");
   assert.equal(info.description, "Builds and tests repository changes.");
-  assert.equal(info.url, `${url}/a2a`);
+  assert.equal(info.url, `${url.replace("http:", "ws:")}/agent`);
   assert.equal(info.capabilities.skills[0].id, "coding-task");
   assert.deepEqual(info.capabilities.tools, ["read_file", "write_file", "run_command"]);
   assert.equal(info.capabilities.mcp, true);
@@ -343,7 +337,7 @@ test("runs a REPL task and exposes its final status", async (t) => {
   }
   assert.equal(task.state, "completed");
   assert.equal(task.source, "repl");
-  assert.equal(task.callbackDelivered, null);
+  assert.equal(task.deliveryError, null);
   assert.equal(task.result.message.parts[0].text, "reply: test the agent");
   assert.equal(task.archive.fileCount, 1);
   const outputResponse = await fetch(`${url}/workspace/${submitted.taskId}/output.md`);
