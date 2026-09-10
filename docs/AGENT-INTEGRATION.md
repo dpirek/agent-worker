@@ -13,7 +13,9 @@ untrusted networks. HTTP task submission and completion callbacks are not suppor
 | `AI_HARNESS_OFFICE_TLS_REJECT_UNAUTHORIZED` | Set to `false` only for development with an invalid/self-signed `wss://` certificate. Defaults to `true` and logs a warning when disabled. |
 | `WORKER_NAME` | Stable registry identity matching `^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$`. |
 | `WORKER_DESCRIPTION` | Optional discovery description. |
-| `WORKER_PUBLIC_URL` | Credential-free public HTTP(S) base used for artifact URLs and converted to the registered WS(S) identity. |
+| `WORKER_PUBLIC_URL` | Credential-free public HTTP(S) base used for the registered worker identity and individual workspace links. |
+| `AI_HARNESS_OFFICE_UPLOAD_WORKSPACE` | Office-managed workspace receiving ZIP uploads. Defaults to `.`. |
+| `WORKER_UPLOAD_TIMEOUT_MS` | Completed ZIP upload timeout in milliseconds. Defaults to `120000`. |
 | `WORKER_RECONNECT_MIN_MS` | Initial reconnect delay; default `1000`. |
 | `WORKER_RECONNECT_MAX_MS` | Maximum reconnect delay; default `30000`. |
 | `WORKER_HEARTBEAT_MS` | Application heartbeat interval; default `30000`. |
@@ -45,13 +47,19 @@ The worker becomes assignable after receiving `registered`. It accepts `task` me
 that point. Each assignment's `taskId` is used as the execution identity and its
 `message.messageId` is copied to every update's `inReplyTo`.
 
-The worker sends a `working` update as execution starts. Successful execution then ends with exactly
-one `completed` update. Its `artifacts` array contains the published workspace ZIP with an
-`application/zip` MIME type, byte size, and file count. The URI is published before the update
-is sent and remains served by the worker HTTP process.
+The worker sends a `working` update as execution starts. Successful execution uploads the workspace
+ZIP directly to the Office with an authenticated binary `POST /api/workspace-upload`, then ends with
+exactly one `completed` update. Its `artifacts` array identifies the Office-hosted ZIP with an
+`application/zip` MIME type, byte size, and file count. An upload failure fails the task instead of
+publishing a worker-hosted fallback URL.
 
 Failed execution ends with exactly one `failed` update containing `error.message` and explanatory
 Markdown. Failed updates never include artifacts.
+
+The upload request sends the ZIP bytes as `application/zip`, authenticates with
+`Authorization: Bearer AI_HARNESS_WORKER_TOKEN`, and includes the worker, task, and message
+identifiers in `X-Agent-Name`, `X-Office-Task-Id`, and `X-Office-Message-Id`. The upload target is
+derived from the Office WebSocket origin, or from `AI_HARNESS_OFFICE_HTTP_URL` when configured.
 
 ## Direct questions
 

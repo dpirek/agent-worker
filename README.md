@@ -130,7 +130,7 @@ The default local endpoints are:
 - `GET /api/status` — redacted configuration, office connection, queue, and recent tasks
 - `GET /api/info` and `GET /.well-known/agent-card.json` — worker metadata
 - `GET /workspace/{taskId}/{path}` — task files
-- `GET /workspace/{taskId}.zip` — completed workspace deliverables
+- `GET /workspace/{taskId}.zip` — local archive inspection (Office handoff uses direct upload)
 
 ## Office registration
 
@@ -174,9 +174,11 @@ imperative stop assignment is handled as a control task. A stopped task immediat
 `failed` with error code `TASK_STOPPED`, aborts cooperative model/tool operations, and never publishes
 a late completion or artifacts.
 
-On success, the final Markdown is saved as `output.md`, the workspace is packaged as a ZIP, and the
-completed update includes an HTTP(S) file artifact. Failed updates contain `error.message` and no
-deliverables.
+On success, the final Markdown is saved as `output.md` and the workspace is packaged as a ZIP. The
+worker sends the ZIP directly to the Office with an authenticated binary
+`POST /api/workspace-upload`; only after that succeeds does it send the completed update. The
+artifact identifies the Office-hosted copy, so the Office does not download the archive from the
+worker. Failed updates contain `error.message` and no deliverables.
 
 The worker auto-approves only the tools named in `WORKER_TOOLS`, because no interactive user is
 present. The default tool set includes `list_teammates` and `ask_teammate`; deployments may remove

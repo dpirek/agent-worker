@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { officeUploadUrl, uploadWorkspaceZip } from "../lib/office-upload.js";
 import { agentInfo, appendWorkspaceLinks, createWorkerServer, stopTaskCommand } from "../lib/worker.js";
 
 function officeHarness() {
@@ -173,6 +174,11 @@ async function listeningServer(options) {
     : await fs.mkdtemp(path.join(os.tmpdir(), "agent-worker-workspace-"));
   const server = createWorkerServer({
     ...options,
+    uploadWorkspace: options?.uploadWorkspace || (async ({ archivePath, taskId }) => ({
+      name: `${taskId}.zip`,
+      size: (await fs.stat(archivePath)).size,
+      uri: `https://office.example/api/workspace-file-asset?workspace=.&path=${taskId}.zip`,
+    })),
     env: {
       ...options?.env,
       WORKER_WORKSPACE: options?.env?.WORKER_WORKSPACE || temporaryWorkspace,
@@ -189,6 +195,7 @@ async function listeningServer(options) {
 test("registers with the office and completes a delivered WebSocket task", async (t) => {
   const office = officeHarness();
   let taskWorkspace;
+  let uploadedArchive;
   const { server, url } = await listeningServer({
     env: {
       AI_HARNESS_OFFICE_URL: "ws://office.example:8080",
@@ -196,6 +203,14 @@ test("registers with the office and completes a delivered WebSocket task", async
       WORKER_NAME: "Repository Worker",
     },
     officeConnectionFactory: office.factory,
+    uploadWorkspace: async ({ archivePath, taskId, messageId }) => {
+      uploadedArchive = { content: await fs.readFile(archivePath), taskId, messageId };
+      return {
+        name: `${taskId}.zip`,
+        size: (await fs.stat(archivePath)).size,
+        uri: `https://office.example/uploads/${taskId}.zip`,
+      };
+    },
     runTask: async (prompt, context) => {
       taskWorkspace = context.workspace;
       await fs.writeFile(path.join(context.workspace, "result.txt"), "handoff contents", "utf8");
@@ -232,20 +247,89 @@ test("registers with the office and completes a delivered WebSocket task", async
   assert.equal(result.artifacts[0].artifactId, `workspace-${result.taskId}`);
   assert.equal(result.artifacts[0].parts[0].kind, "file");
   assert.equal(result.artifacts[0].parts[0].file.mimeType, "application/zip");
-  assert.equal(result.artifacts[0].parts[0].file.uri, `${url}/workspace/task-001.zip`);
+  assert.equal(result.artifacts[0].parts[0].file.uri, "https://office.example/uploads/task-001.zip");
   assert.equal(result.artifacts[0].metadata.fileCount, 2);
 
   assert.equal(await fs.readFile(path.join(taskWorkspace, "output.md"), "utf8"), "finished: Do the work");
 
-  const archiveResponse = await fetch(result.artifacts[0].parts[0].file.uri);
-  assert.equal(archiveResponse.status, 200);
-  assert.equal(archiveResponse.headers.get("content-type"), "application/zip");
-  const archive = Buffer.from(await archiveResponse.arrayBuffer());
+  assert.equal(uploadedArchive.taskId, "task-001");
+  assert.equal(uploadedArchive.messageId, "msg-001");
+  const archive = uploadedArchive.content;
   assert.equal(archive.readUInt32LE(0), 0x04034b50);
   assert.equal(archive.includes(Buffer.from("result.txt")), true);
   assert.equal(archive.includes(Buffer.from("handoff contents")), true);
   assert.equal(archive.includes(Buffer.from("output.md")), true);
   assert.equal(archive.includes(Buffer.from("finished: Do the work")), true);
+});
+
+test("posts a workspace ZIP directly to the Office upload endpoint", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "agent-worker-upload-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const archivePath = path.join(directory, "task-upload.zip");
+  const archive = Buffer.from("zip bytes");
+  await fs.writeFile(archivePath, archive);
+  let request;
+  const env = {
+    AI_HARNESS_OFFICE_URL: "wss://office.example/ws/workers",
+    AI_HARNESS_WORKER_TOKEN: "shared-secret",
+    WORKER_NAME: "Repository Worker",
+  };
+
+  const uploaded = await uploadWorkspaceZip({
+    archivePath,
+    taskId: "task-upload",
+    messageId: "message-upload",
+    env,
+    fetchImpl: async (url, options) => {
+      request = { url: String(url), options };
+      return new Response(JSON.stringify({ ok: true, relativePath: "task-upload.zip", size: archive.length }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+
+  assert.equal(request.url, "https://office.example/api/workspace-upload?workspace=.&name=task-upload.zip");
+  assert.equal(request.options.method, "POST");
+  assert.equal(request.options.headers.authorization, "Bearer shared-secret");
+  assert.equal(request.options.headers["content-type"], "application/zip");
+  assert.equal(request.options.headers["x-agent-name"], "Repository Worker");
+  assert.equal(request.options.headers["x-office-task-id"], "task-upload");
+  assert.equal(request.options.headers["x-office-message-id"], "message-upload");
+  assert.deepEqual(request.options.body, archive);
+  assert.equal(uploaded.uri, "https://office.example/api/workspace-file-asset?workspace=.&path=task-upload.zip");
+});
+
+test("derives the Office upload endpoint from the worker WebSocket URL", () => {
+  assert.equal(
+    officeUploadUrl({ AI_HARNESS_OFFICE_URL: "ws://office.example:8080/ws/workers" }, "result one.zip").href,
+    "http://office.example:8080/api/workspace-upload?workspace=.&name=result+one.zip",
+  );
+});
+
+test("fails a task when its workspace ZIP cannot be uploaded", async (t) => {
+  const office = officeHarness();
+  const { server } = await listeningServer({
+    env: { AI_HARNESS_OFFICE_URL: "ws://office.example", AI_HARNESS_WORKER_TOKEN: "secret" },
+    officeConnectionFactory: office.factory,
+    uploadWorkspace: async () => { throw new Error("Office upload unavailable"); },
+    runTask: async () => "finished",
+  });
+  t.after(() => server.close());
+
+  office.deliver({
+    type: "task",
+    taskId: "task-upload-failure",
+    message: { messageId: "message-upload-failure", parts: [{ kind: "text", text: "Run" }] },
+  });
+  for (let attempt = 0; attempt < 40 && office.sent.length < 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+
+  const result = office.sent[1];
+  assert.equal(result.status.state, "failed");
+  assert.match(result.error.message, /Office upload unavailable/);
+  assert.equal(result.artifacts, undefined);
 });
 
 test("gives concurrent office tasks different workspace subfolders", async (t) => {
@@ -276,7 +360,7 @@ test("gives concurrent office tasks different workspace subfolders", async (t) =
 
   assert.equal(new Set(workspaces).size, 2);
   assert.equal(office.sent.filter((item) => item.status.state === "completed")
-    .every((result) => result.artifacts[0].parts[0].file.uri.endsWith(`${result.taskId}.zip`)), true);
+    .every((result) => result.artifacts[0].parts[0].file.uri.includes(`${result.taskId}.zip`)), true);
   assert.match(url, /^http:/);
 });
 
