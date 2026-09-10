@@ -8,8 +8,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3001
 
-      AI_HARNESS_OFFICE_URL: ws://127.0.0.1:8005/ws/workers
-      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN:?Set AI_HARNESS_WORKER_TOKEN in .env or the shell}
+      AI_HARNESS_OFFICE_URL: ${AI_HARNESS_OFFICE_URL}
+      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN}
 
       WORKER_NAME: Researcher
       WORKER_DESCRIPTION: Researches current news, exchange rates, interest rates, economic data, and other public internet information with source citations.

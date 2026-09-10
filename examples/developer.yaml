@@ -8,8 +8,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3003
 
-      AI_HARNESS_OFFICE_URL: ws://127.0.0.1:8005/ws/workers
-      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN:?Set AI_HARNESS_WORKER_TOKEN in .env or the shell}
+      AI_HARNESS_OFFICE_URL: ${AI_HARNESS_OFFICE_URL}
+      AI_HARNESS_WORKER_TOKEN: ${AI_HARNESS_WORKER_TOKEN}
 
       WORKER_NAME: Developer
       WORKER_DESCRIPTION: Creates polished image-based designs and visual assets from Agent Office briefs.
