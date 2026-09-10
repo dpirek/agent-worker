@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import crypto from "node:crypto";
+import http from "node:http";
+import { once } from "node:events";
+import { closeSocket, decodeFrames, sendJson } from "../lib/ws.js";
 
 import { createOfficeConnection, officeWebSocketUrl, websocketErrorDetail } from "../lib/office-connection.js";
 
@@ -40,6 +44,59 @@ class FakeWebSocket {
     this.emit("close", { code, reason });
   }
 }
+
+test("native WebSocket registers and exchanges task messages over a real connection", { timeout: 5000 }, async (t) => {
+  const server = http.createServer();
+  const sockets = new Set();
+  t.after(() => {
+    for (const socket of sockets) socket.destroy();
+    server.close();
+  });
+  const received = [];
+  const completed = new Promise((resolve, reject) => {
+    server.on("upgrade", (request, socket) => {
+      sockets.add(socket);
+      const accept = crypto.createHash("sha1")
+        .update(request.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+        .digest("base64");
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+      let buffer = Buffer.alloc(0);
+      socket.on("error", reject);
+      socket.on("data", (chunk) => {
+        try {
+          const decoded = decodeFrames(Buffer.concat([buffer, chunk]));
+          buffer = decoded.remaining;
+          for (const frame of decoded.messages) {
+            if (frame.type === "close") { closeSocket(socket); continue; }
+            if (frame.type !== "text") continue;
+            const payload = JSON.parse(frame.payload.toString());
+            received.push(payload);
+            if (payload.type === "register") {
+              sendJson(socket, { type: "registered", connectionId: "native-1" });
+              sendJson(socket, { type: "task", taskId: "native-task" });
+            } else if (payload.type === "task_update") resolve();
+          }
+        } catch (error) { reject(error); }
+      });
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const connection = createOfficeConnection({
+    url: `ws://127.0.0.1:${server.address().port}`,
+    token: "native-secret",
+    worker: { name: "Native Worker" },
+    onTask(task, transport) {
+      transport.send({ type: "task_update", taskId: task.taskId, status: { state: "completed" } });
+    },
+  });
+  t.after(() => connection.stop());
+  connection.start();
+  await completed;
+  assert.equal(received[0].credentials.token, "native-secret");
+  assert.equal(received[1].taskId, "native-task");
+  assert.equal(connection.getStatus().connectionId, "native-1");
+});
 
 test("normalizes a bare office origin and rejects credentials in its URL", () => {
   assert.equal(officeWebSocketUrl("ws://office.example:8080"), "ws://office.example:8080/ws/workers");
@@ -160,23 +217,15 @@ test("reports the underlying WebSocket network error details", () => {
   connection.stop();
 });
 
-test("allows invalid WSS certificates only with an explicit warning", () => {
-  FakeWebSocket.instances.length = 0;
-  const messages = [];
-  const connection = createOfficeConnection({
+test("rejects the unsupported native WSS certificate verification override", () => {
+  assert.throws(() => createOfficeConnection({
     url: "wss://office.example",
     token: "shared-secret",
     worker: { name: "Worker 1" },
     WebSocketImpl: FakeWebSocket,
     tlsRejectUnauthorized: false,
     onTask() {},
-    onInfo(message) { messages.push(message); },
-  });
-
-  connection.start();
-  assert.equal(FakeWebSocket.instances[0].options.rejectUnauthorized, false);
-  assert.match(messages[0], /WARNING: TLS certificate verification is disabled/);
-  connection.stop();
+  }), /NODE_EXTRA_CA_CERTS/);
 });
 
 test("formats nested WebSocket error causes", () => {

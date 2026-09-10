@@ -148,9 +148,11 @@ A bare `ws://` or `wss://` office origin is expanded to `/ws/workers`. Credentia
 first registration message and are never placed in a URL. Use `wss://` and an HTTPS public worker
 URL outside trusted networks.
 
-For a development server with an invalid or self-signed certificate, set
-`AI_HARNESS_OFFICE_TLS_REJECT_UNAUTHORIZED=false`. This disables certificate verification only for
-the Office WebSocket and emits a warning; never use it for a production connection.
+The Office client uses Node's built-in WebSocket API, with no npm WebSocket dependency.
+For a development server with a private certificate authority, start the worker with
+`NODE_EXTRA_CA_CERTS=/path/to/office-ca.pem` to trust its CA certificate. The native client
+does not support `AI_HARNESS_OFFICE_TLS_REJECT_UNAUTHORIZED=false` for WSS connections;
+that setting now reports a configuration error.
 
 The worker reconnects with exponential backoff, sends application heartbeats, and registers again
 after a disconnect. In-flight work belongs to the old socket and is marked failed; it is not resumed
