@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createOfficeConnection, officeWebSocketUrl } from "../lib/office-connection.js";
+import { createOfficeConnection, officeWebSocketUrl, websocketErrorDetail } from "../lib/office-connection.js";
 
 class FakeWebSocket {
   static OPEN = 1;
   static CLOSING = 2;
   static instances = [];
 
-  constructor(url) {
+  constructor(url, protocols, options) {
     this.url = url;
+    this.protocols = protocols;
+    this.options = options;
     this.readyState = 0;
     this.listeners = new Map();
     this.sent = [];
@@ -129,4 +131,60 @@ test("requires the shared worker token", () => {
     onTask() {},
     WebSocketImpl: FakeWebSocket,
   }), /AI_HARNESS_WORKER_TOKEN is required/);
+});
+
+test("reports the underlying WebSocket network error details", () => {
+  FakeWebSocket.instances.length = 0;
+  const messages = [];
+  const statuses = [];
+  const connection = createOfficeConnection({
+    url: "wss://office.example",
+    token: "shared-secret",
+    worker: { name: "Worker 1" },
+    WebSocketImpl: FakeWebSocket,
+    onTask() {},
+    onInfo(message) { messages.push(message); },
+    onStatus(status) { statuses.push(status); },
+  });
+
+  connection.start();
+  const socket = FakeWebSocket.instances[0];
+  const error = Object.assign(new Error("self-signed certificate"), {
+    code: "DEPTH_ZERO_SELF_SIGNED_CERT",
+  });
+  socket.emit("error", { message: "WebSocket connection failed", error });
+
+  assert.match(messages.at(-1), /self-signed certificate/);
+  assert.match(messages.at(-1), /code=DEPTH_ZERO_SELF_SIGNED_CERT/);
+  assert.match(statuses.at(-1).error, /DEPTH_ZERO_SELF_SIGNED_CERT/);
+  connection.stop();
+});
+
+test("allows invalid WSS certificates only with an explicit warning", () => {
+  FakeWebSocket.instances.length = 0;
+  const messages = [];
+  const connection = createOfficeConnection({
+    url: "wss://office.example",
+    token: "shared-secret",
+    worker: { name: "Worker 1" },
+    WebSocketImpl: FakeWebSocket,
+    tlsRejectUnauthorized: false,
+    onTask() {},
+    onInfo(message) { messages.push(message); },
+  });
+
+  connection.start();
+  assert.equal(FakeWebSocket.instances[0].options.rejectUnauthorized, false);
+  assert.match(messages[0], /WARNING: TLS certificate verification is disabled/);
+  connection.stop();
+});
+
+test("formats nested WebSocket error causes", () => {
+  const error = new Error("connection failed", {
+    cause: Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND", hostname: "office.example" }),
+  });
+  assert.equal(
+    websocketErrorDetail({ error }),
+    "connection failed: getaddrinfo ENOTFOUND; code=ENOTFOUND; hostname=office.example",
+  );
 });

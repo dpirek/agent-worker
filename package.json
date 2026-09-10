@@ -25,5 +25,8 @@
   "bugs": {
     "url": "https://github.com/dpirek/agent-worker/issues"
   },
-  "homepage": "https://github.com/dpirek/agent-worker#readme"
+  "homepage": "https://github.com/dpirek/agent-worker#readme",
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
 }

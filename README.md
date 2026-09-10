@@ -139,6 +139,7 @@ Set the same strong shared token in the office and worker:
 ```dotenv
 AI_HARNESS_OFFICE_URL=ws://127.0.0.1:8080/ws/workers
 AI_HARNESS_WORKER_TOKEN=replace-with-a-long-random-token
+AI_HARNESS_OFFICE_TLS_REJECT_UNAUTHORIZED=true
 WORKER_NAME=Coding Worker Agent
 WORKER_PUBLIC_URL=http://127.0.0.1:3000
 ```
@@ -146,6 +147,10 @@ WORKER_PUBLIC_URL=http://127.0.0.1:3000
 A bare `ws://` or `wss://` office origin is expanded to `/ws/workers`. Credentials are sent in the
 first registration message and are never placed in a URL. Use `wss://` and an HTTPS public worker
 URL outside trusted networks.
+
+For a development server with an invalid or self-signed certificate, set
+`AI_HARNESS_OFFICE_TLS_REJECT_UNAUTHORIZED=false`. This disables certificate verification only for
+the Office WebSocket and emits a warning; never use it for a production connection.
 
 The worker reconnects with exponential backoff, sends application heartbeats, and registers again
 after a disconnect. In-flight work belongs to the old socket and is marked failed; it is not resumed

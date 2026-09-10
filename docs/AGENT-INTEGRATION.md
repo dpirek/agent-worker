@@ -10,6 +10,7 @@ untrusted networks. HTTP task submission and completion callbacks are not suppor
 | --- | --- |
 | `AI_HARNESS_OFFICE_URL` | Office `ws://` or `wss://` URL. A bare origin gets `/ws/workers`. |
 | `AI_HARNESS_WORKER_TOKEN` | Shared office registration credential. Required when an office URL is configured. |
+| `AI_HARNESS_OFFICE_TLS_REJECT_UNAUTHORIZED` | Set to `false` only for development with an invalid/self-signed `wss://` certificate. Defaults to `true` and logs a warning when disabled. |
 | `WORKER_NAME` | Stable registry identity matching `^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$`. |
 | `WORKER_DESCRIPTION` | Optional discovery description. |
 | `WORKER_PUBLIC_URL` | Credential-free public HTTP(S) base used for artifact URLs and converted to the registered WS(S) identity. |
