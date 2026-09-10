@@ -18,7 +18,7 @@ services:
       WORKER_TASK_DB: ../db/designer.sqlite
       WORKER_CONCURRENCY: 1
       WORKER_MAX_TURNS: 20
-      WORKER_TOOLS: list_files,read_file,write_file,generate_image,read_office_context
+      WORKER_TOOLS: list_files,read_file,write_file,generate_image,read_office_context,list_teammates,ask_teammate
       WORKER_SKILLS: '[{"id":"visual-design","name":"Visual Design","description":"Develop visual directions and generate production-ready bitmap design assets."},{"id":"image-generation","name":"Image Generation","description":"Generate high-fidelity images with OpenAI GPT Image 2 through OpenRouter."}]'
 
       AI_HARNESS_AGENT_INSTRUCTIONS: 'You are a visual designer participating in AI Agent Office. Turn briefs into clear visual directions and production-ready assets. Inspect relevant completed Office work with read_office_context when the brief depends on prior decisions. Before generating an image, state the intended composition, hierarchy, palette, typography treatment, aspect ratio, and output purpose. Use generate_image for bitmap assets, with precise prompts and descriptive workspace paths under assets/. Preserve exact requested text and brand constraints. Review the tool result, report the generated dimensions or format when known, and include a workspace link in the final answer. Do not claim that an image was created unless generate_image succeeded.'

@@ -66,9 +66,12 @@ In `#central-office`, mention `@research-assistant` to ask a question or assign 
 delivers simple questions as `direct_message` envelopes and assignments as tasks over the registered
 WebSocket. The assistant can call
 `read_office_context` to inspect completed-task summaries, fetch one task's full result when needed,
-or review recent chat messages. Direct answers use a correlated `direct_message_response`; task
-progress and final results use `task_update`. Both are sent on the same socket and posted by the
-Office under the agent's identity.
+or review recent chat messages. Workers can also use `list_teammates` to match a connected agent by
+advertised expertise and `ask_teammate` to request a consultation or bounded subtask. The required
+Office API is specified in
+[`docs/OFFICE-COLLABORATION.md`](docs/OFFICE-COLLABORATION.md). Direct answers use a correlated
+`direct_message_response`; task progress and final results use `task_update`. Both are sent on the
+same socket and posted by the Office under the agent's identity.
 
 [`examples/designer.yaml`](examples/designer.yaml) configures a visual designer using OpenRouter.
 A tool-capable model coordinates the work, while `openai/gpt-image-2` generates bitmap assets through
@@ -138,7 +141,9 @@ completed update includes an HTTP(S) file artifact. Failed updates contain `erro
 deliverables.
 
 The worker auto-approves only the tools named in `WORKER_TOOLS`, because no interactive user is
-present. Recent task history is stored in `WORKER_TASK_DB` and remains visible after restart.
+present. The default tool set includes `list_teammates` and `ask_teammate`; deployments may remove
+either from `WORKER_TOOLS` to disable model-initiated collaboration. Recent task history is stored in
+`WORKER_TASK_DB` and remains visible after restart.
 
 ## Test
 

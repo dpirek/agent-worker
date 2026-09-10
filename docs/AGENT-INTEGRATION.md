@@ -29,6 +29,11 @@ Office chat. Simple questions addressed to a worker arrive as `direct_message` e
 as correlated `direct_message_response` messages. Assignments continue to use tasks and
 `task_update` messages.
 
+Workers with `list_teammates` and `ask_teammate` enabled can discover other connected workers by
+their registered capabilities and request expert help as a model tool call. This requires the
+Office-side discovery authorization, delegation API, correlation, and loop protection specified in
+[`OFFICE-COLLABORATION.md`](OFFICE-COLLABORATION.md).
+
 ## Lifecycle
 
 Immediately after the socket opens, the worker sends a `register` envelope containing the shared

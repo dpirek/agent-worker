@@ -36,7 +36,7 @@ test("rejects malformed indentation and duplicate mapping keys", () => {
 test("parses the research assistant example", async () => {
   const manifest = parseYaml(await fs.readFile(new URL("../examples/research-assistant.yaml", import.meta.url), "utf8"));
   const environment = Object.values(manifest.services)[0].environment;
-  assert.equal(environment.WORKER_TOOLS, "curl,read_file,write_file,read_office_context");
+  assert.equal(environment.WORKER_TOOLS, "curl,read_file,write_file,read_office_context,list_teammates,ask_teammate");
   assert.match(environment.WORKER_SKILLS, /web-research/);
   assert.match(environment.AI_HARNESS_AGENT_INSTRUCTIONS, /current news/);
 });

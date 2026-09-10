@@ -17,7 +17,7 @@ services:
       WORKER_WORKSPACE: ../.workspace/developer
       WORKER_CONCURRENCY: 1
       WORKER_MAX_TURNS: 30
-      WORKER_TOOLS: list_files,read_file,write_file,search_files,curl,run_command,generate_image,read_office_context
+      WORKER_TOOLS: list_files,read_file,write_file,search_files,curl,run_command,generate_image,read_office_context,list_teammates,ask_teammate
       WORKER_SKILLS: '[{"id":"image-design","name":"Image Design","description":"Turn creative briefs into production-ready image designs and visual assets."},{"id":"image-generation","name":"Image Generation","description":"Generate image deliverables with OpenAI GPT 5.4 Image 2 through OpenRouter."}]'
       WORKER_TASK_DB: ../db/developer.sqlite
 
