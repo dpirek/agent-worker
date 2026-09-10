@@ -27,4 +27,4 @@ services:
       PROVIDER_NAME: openrouter
       PROVIDER_URL: https://openrouter.ai/api/v1
       PROVIDER_API_KEY: ${PROVIDER_API_KEY}
-      PROVIDER_MODEL: openai/gpt-5.6-sol
+      PROVIDER_MODEL: openai/deepseek-v4-pro
