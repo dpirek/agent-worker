@@ -174,6 +174,7 @@ async function listeningServer(options) {
     : await fs.mkdtemp(path.join(os.tmpdir(), "agent-worker-workspace-"));
   const server = createWorkerServer({
     ...options,
+    fetchImpl: options?.fetchImpl || (async () => new Response(JSON.stringify({ ok: true }))),
     uploadWorkspace: options?.uploadWorkspace || (async ({ archivePath, taskId }) => ({
       name: `${taskId}.zip`,
       size: (await fs.stat(archivePath)).size,
@@ -260,6 +261,49 @@ test("registers with the office and completes a delivered WebSocket task", async
   assert.equal(archive.includes(Buffer.from("handoff contents")), true);
   assert.equal(archive.includes(Buffer.from("output.md")), true);
   assert.equal(archive.includes(Buffer.from("finished: Do the work")), true);
+});
+
+test("uploads test.md once per Office registration and reports upload failures", async (t) => {
+  const office = officeHarness();
+  const requests = [];
+  const logs = [];
+  const { server, url } = await listeningServer({
+    env: {
+      AI_HARNESS_OFFICE_URL: "wss://office.example/ws/workers",
+      AI_HARNESS_WORKER_TOKEN: "shared-secret",
+      AI_HARNESS_OFFICE_UPLOAD_WORKSPACE: "connectivity",
+      WORKER_NAME: "Test Worker",
+    },
+    officeConnectionFactory: office.factory,
+    onInfo: (message) => logs.push(message),
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), options });
+      if (requests.length > 1) throw new Error("Upload unavailable");
+      return new Response(JSON.stringify({ ok: true }));
+    },
+  });
+  t.after(() => server.close());
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(requests.length, 1);
+  const request = requests[0];
+  assert.equal(request.url, "https://office.example/api/workspace-upload?workspace=connectivity&name=test.md");
+  assert.equal(request.options.method, "POST");
+  assert.equal(request.options.headers.authorization, "Bearer shared-secret");
+  assert.equal(request.options.headers["content-type"], "text/markdown; charset=utf-8");
+  assert.equal(request.options.headers["x-office-task-id"], undefined);
+  assert.match(request.options.body.toString(), /Worker: Test Worker\nConnection: connection-1/);
+  assert.ok(logs.some((message) => message.includes("connectivity test succeeded")));
+
+  const status = { status: "connected", endpoint: "wss://office.example/ws/workers", connectionId: "connection-1" };
+  office.registration().onStatus(status);
+  assert.equal(requests.length, 1);
+  office.registration().onStatus({ ...status, connectionId: "connection-2" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(requests.length, 2);
+  assert.ok(logs.some((message) => message.includes("connectivity test failed: Upload unavailable")));
+  const workerStatus = await (await fetch(`${url}/api/status`)).json();
+  assert.deepEqual(workerStatus.tasks, []);
+  assert.equal(server.listening, true);
 });
 
 test("posts a workspace ZIP directly to the Office upload endpoint", async (t) => {

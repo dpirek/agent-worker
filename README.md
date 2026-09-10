@@ -174,6 +174,10 @@ imperative stop assignment is handled as a control task. A stopped task immediat
 `failed` with error code `TASK_STOPPED`, aborts cooperative model/tool operations, and never publishes
 a late completion or artifacts.
 
+After each successful Office registration (including reconnects), the worker uploads `test.md`
+to the configured Office upload workspace to check file-transfer connectivity. It logs success
+or failure without blocking tasks or disconnecting from the Office.
+
 On success, the final Markdown is saved as `output.md` and the workspace is packaged as a ZIP. The
 worker sends the ZIP directly to the Office with an authenticated binary
 `POST /api/workspace-upload`; only after that succeeds does it send the completed update. The
