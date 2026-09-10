@@ -21,6 +21,39 @@ cp .env.example .env
 npm start
 ```
 
+### Use a local Codex session
+
+[`codex.js`](codex.js) is an Agent Office adapter for the locally installed Codex CLI. It uses the
+existing Codex login and configuration, gives each Office task an isolated workspace, answers
+direct messages, supports Office stop commands, and publishes task workspaces through the same
+worker protocol:
+
+```sh
+codex login                 # only needed when Codex is not already authenticated
+npm run start:codex
+```
+
+It reads the normal Office and worker settings from `.env`. For this adapter, values in `.env` are
+authoritative over inherited shell variables, ensuring it uses the same Office URL and worker token
+as the other agents. These optional settings customize the Codex subprocess:
+
+```dotenv
+CODEX_EXECUTABLE=codex
+CODEX_WORKER_NAME=
+CODEX_MODEL=
+CODEX_PROFILE=
+CODEX_SANDBOX=workspace-write
+CODEX_EPHEMERAL=false
+CODEX_MAX_DIAGNOSTIC_BYTES=32768
+```
+
+By default, the adapter registers as `codex-<hostname>` so Codex workers from different computers
+are easy to distinguish. Set `CODEX_WORKER_NAME` to override that name. Leaving `CODEX_MODEL` and
+`CODEX_PROFILE` empty preserves the local Codex defaults. Approval prompts are disabled because
+Office work is unattended; Codex still runs in the configured sandbox, which defaults to
+`workspace-write`. Each request starts a separate local Codex conversation so concurrent tasks and
+unrelated direct messages cannot contaminate one another.
+
 ### YAML-managed instance
 
 [`agent-worker.yaml`](agent-worker.yaml) provides a Docker-Compose-style alternative. Each entry in

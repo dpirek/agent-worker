@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "start:codex": "CODEX_WORKER_NAME=codex-agent node codex.js",
     "test": "node --test"
   },
   "repository": {
