@@ -4,6 +4,8 @@ import { initPanelMinimizing } from "./lib/panel-minimize.mjs";
 import { initPanelResizing } from "./lib/panel-resize.mjs";
 import { revealInitialText } from "./lib/retro-reveal.mjs";
 import { createRenderer } from "./lib/render.mjs";
+import { initWorkspaceBrowser } from "./lib/workspace-browser.mjs";
+import { initChat } from "./lib/chat.mjs";
 
 const select = (selector) => document.querySelector(selector);
 const elements = {
@@ -17,19 +19,23 @@ const elements = {
   prompt: select("#prompt"),
   queueBadge: select("#queue-badge"),
   runState: select("#run-state"),
-  sendButton: select("#send"),
   status: select("#status"),
   statusDialog: select("#status-dialog"),
-  taskId: select("#task-id"),
   tasks: select("#tasks"),
   workspaceSummary: select("#workspace-summary"),
 };
 const renderer = createRenderer(elements);
 let activeTask = null;
+let submitting = false;
+let officePending = false;
+let officeEnabled = false;
+const officeButton = select("#office-toggle");
 
 let panelResizing;
 initPanelMinimizing({ onChange: () => panelResizing?.refresh() });
 panelResizing = initPanelResizing();
+const workspaceBrowser = initWorkspaceBrowser({ onLayoutChange: () => panelResizing?.refresh() });
+const chat = initChat();
 
 function resizePrompt() {
   elements.prompt.style.height = "auto";
@@ -41,9 +47,16 @@ function resizePrompt() {
 
 async function refreshStatus() {
   try {
-    renderer.renderStatus(await fetchStatus());
+    const data = await fetchStatus();
+    renderer.renderStatus(data);
+    officeEnabled = data.orchestration.enabled;
+    officeButton.textContent = officePending ? "Please wait…" : officeEnabled ? "Disconnect" : "Connect";
+    officeButton.disabled = officePending || !data.orchestration.configured;
+    officeButton.title = !data.orchestration.configured ? "Set AI_HARNESS_OFFICE_URL to connect" : officeEnabled ? "Disconnect from Office and stop active Office tasks" : "Connect to Office";
+    void chat.refresh();
   } catch (error) {
     renderer.renderOffline(error);
+    officeButton.disabled = true;
   }
 }
 
@@ -56,7 +69,7 @@ async function watchTask(taskId) {
       const text = task.result?.message?.parts?.[0]?.text || task.error || "Task ended without output.";
       renderer.addMessage("agent", text, task.state === "failed" ? "error" : "");
       activeTask = null;
-      elements.sendButton.disabled = false;
+      void workspaceBrowser.refresh();
       elements.runState.textContent = task.state;
       return;
     }
@@ -67,24 +80,40 @@ async function watchTask(taskId) {
 elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const prompt = elements.prompt.value.trim();
-  if (!prompt || activeTask) return;
+  if (!prompt || activeTask || submitting) return;
+  submitting = true;
 
   renderer.addMessage("user", prompt);
   elements.prompt.value = "";
   resizePrompt();
-  elements.sendButton.disabled = true;
   elements.runState.textContent = "submitting";
   try {
     const data = await submitTask(prompt);
     activeTask = data.taskId;
-    elements.taskId.textContent = `Task ${data.taskId}`;
     await watchTask(data.taskId);
   } catch (error) {
     renderer.addMessage("system", error.message, "error");
     activeTask = null;
-    elements.sendButton.disabled = false;
     elements.runState.textContent = "error";
+  } finally {
+    submitting = false;
   }
+});
+
+officeButton.addEventListener("click", async () => {
+  if (officePending) return;
+  officePending = true;
+  officeButton.disabled = true;
+  officeButton.textContent = "Please wait…";
+  try {
+    const response = await fetch("/api/office/connection", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: officeEnabled ? "disconnect" : "connect" }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to change Office connection.");
+  } catch (error) { renderer.addMessage("system", error.message, "error"); }
+  finally { officePending = false; await refreshStatus(); }
 });
 
 elements.prompt.addEventListener("input", resizePrompt);

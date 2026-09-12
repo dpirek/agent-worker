@@ -10,7 +10,13 @@
   <main class="shell">
     <agent-console-header></agent-console-header>
     <div class="dashboard">
-      <testing-repl></testing-repl>
+      <div class="left-rail">
+        <testing-repl></testing-repl>
+        <layout-resizer data-layout="left-rail" data-index="0" aria-label="Resize Testing REPL and Chat" title="Drag to resize · Double-click to reset"></layout-resizer>
+        <worker-chat-panel></worker-chat-panel>
+        <layout-resizer data-layout="left-rail" data-index="1" aria-label="Resize Chat and Workspace files" title="Drag to resize · Double-click to reset"></layout-resizer>
+        <workspace-files-panel></workspace-files-panel>
+      </div>
       <layout-resizer data-layout="dashboard" data-index="0" aria-label="Resize Testing REPL and side panels" title="Drag to resize · Double-click to reset"></layout-resizer>
       <div class="right-rail">
         <recent-tasks-panel></recent-tasks-panel>

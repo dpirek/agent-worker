@@ -689,3 +689,92 @@ test("appends percent-encoded HTTP links for created files", () => {
   assert.match(markdown, /### Created files/);
   assert.match(markdown, /https:\/\/worker\.example\/workspace\/reports\/result%20one\.md/);
 });
+
+test("browses workspace folders and bounds safe text previews", async (t) => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'worker-browser-'));
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'worker-outside-'));
+  t.after(() => Promise.all([fs.rm(workspace, {recursive:true,force:true}), fs.rm(outside, {recursive:true,force:true})]));
+  await fs.mkdir(path.join(workspace,'assets'));
+  await fs.writeFile(path.join(workspace,'a # file.md'),'# Preview <script>bad()</script>');
+  await fs.writeFile(path.join(workspace,'large.txt'),'x'.repeat(300 * 1024));
+  await fs.writeFile(path.join(workspace,'binary.zip'),Buffer.from([1,0,2]));
+  await fs.writeFile(path.join(workspace,'index.html'),'<h1>Preview</h1>');
+  await fs.writeFile(path.join(outside,'secret.txt'),'secret');
+  await fs.symlink(outside,path.join(workspace,'escape'));
+  const {server,url} = await listeningServer({env:{WORKER_WORKSPACE:workspace}, runTask:async()=>''});
+  t.after(()=>server.close());
+  const listing = await (await fetch(`${url}/api/workspace`)).json();
+  assert.equal(listing.entries[0].name,'assets');
+  assert.ok(!listing.entries.some(e=>e.name==='escape'));
+  const text = await (await fetch(`${url}/api/workspace/file?path=${encodeURIComponent('a # file.md')}`)).json();
+  assert.equal(text.content,'# Preview <script>bad()</script>');
+  const large = await (await fetch(`${url}/api/workspace/file?path=large.txt`)).json();
+  assert.equal(large.content.length,256 * 1024);
+  assert.equal(large.truncated,true);
+  assert.equal((await fetch(`${url}/api/workspace/file?path=binary.zip`)).status,415);
+  for (const target of ['../secret.txt','escape/secret.txt','/etc/passwd','..\\secret.txt']) {
+    assert.equal((await fetch(`${url}/api/workspace/file?path=${encodeURIComponent(target)}`)).status,403);
+  }
+  assert.equal((await fetch(`${url}/api/workspace?path=missing`)).status,404);
+  const html = await fetch(`${url}/workspace/index.html`);
+  assert.match(html.headers.get('content-security-policy'),/sandbox/);
+  assert.match(html.headers.get('content-security-policy'),/script-src 'none'/);
+});
+
+test("manually disconnects and creates a fresh Office connection without duplicate starts", async (t) => {
+  let starts=0, stops=0;
+  const callbacks=[];
+  const {server,url}=await listeningServer({
+    env:{AI_HARNESS_OFFICE_URL:'ws://office.example'},runTask:async()=>'',onInfo:()=>{},
+    officeConnectionFactory(options) {
+      callbacks.push(options);
+      return {start(){starts++;options.onStatus({status:'connected',connectionId:`connection-${starts}`,endpoint:options.url});},stop(){stops++;options.onStatus({status:'stopped',connectionId:null});}};
+    },
+  });
+  t.after(()=>server.close());
+  const change = (action,origin) => fetch(`${url}/api/office/connection`,{method:'POST',headers:{'content-type':'application/json',...(origin?{origin}:{})},body:JSON.stringify({action})});
+  assert.equal(starts,1);
+  assert.equal((await change('disconnect','https://untrusted.example')).status,403);
+  assert.equal((await change('disconnect','null')).status,403);
+  let response=await (await change('disconnect')).json();
+  assert.equal(response.orchestration.enabled,false);
+  assert.equal(response.orchestration.status,'stopped');
+  assert.equal(stops,1);
+  callbacks[0].onStatus({status:'reconnecting'});
+  assert.equal((await (await fetch(`${url}/api/status`)).json()).orchestration.status,'stopped');
+  response=await (await change('connect')).json();
+  assert.equal(response.orchestration.enabled,true);
+  assert.equal(starts,2);
+  await change('connect');
+  assert.equal(starts,2);
+  assert.equal((await change('invalid')).status,400);
+});
+
+test("records incoming and outgoing Office and REPL chat with persisted pagination", async (t) => {
+  const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'worker-chat-'));
+  t.after(()=>fs.rm(workspace,{recursive:true,force:true}));
+  const dbPath=path.join(workspace,'history.sqlite');
+  const office=officeHarness();
+  const options={env:{WORKER_WORKSPACE:workspace,WORKER_TASK_DB:dbPath,AI_HARNESS_OFFICE_URL:'ws://office.example'},officeConnectionFactory:office.factory,runTask:async text=>`Reply to ${text}`,onInfo:()=>{}};
+  const first=await listeningServer(options);
+  t.after(()=>{ if (first.server.listening) first.server.close(); });
+  office.deliverDirect({type:'direct_message',message:{messageId:'chat-in',parts:[{text:'Hello <img onerror=bad()>',kind:'text'}]}});
+  const submitted=await (await fetch(`${first.url}/api/test`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt:'REPL hello'})})).json();
+  let data;
+  for(let i=0;i<100;i++) {
+    data=await (await fetch(`${first.url}/api/messages`)).json();
+    if(data.messages.length===4)break;
+    await new Promise(resolve=>setTimeout(resolve,5));
+  }
+  assert.equal(data.messages.length,4);
+  assert.deepEqual(new Set(data.messages.map(m=>`${m.source}/${m.direction}`)),new Set(['office/incoming','office/outgoing','repl/incoming','repl/outgoing']));
+  assert.ok(data.messages.some(m=>m.taskId===submitted.taskId));
+  const cursor=data.messages[1].id;
+  assert.equal((await (await fetch(`${first.url}/api/messages?before=${cursor}`)).json()).messages.length,1);
+  assert.equal((await (await fetch(`${first.url}/api/messages?after=${cursor}`)).json()).messages.length,2);
+  assert.equal((await fetch(`${first.url}/api/messages?after=-1`)).status,400);
+  await new Promise(resolve=>first.server.close(resolve));
+  const second=await listeningServer(options);
+  t.after(()=>second.server.close());
+  assert.equal((await (await fetch(`${second.url}/api/messages`)).json()).messages.length,4);
+});

@@ -17,10 +17,6 @@ defineComponent("testing-repl", {
     <div class="console" id="console"><div class="empty"><div class="empty-target">Send a task to exercise the configured agent.<br>Enter sends · Shift+Enter adds a new line.</div></div></div>
     <form id="repl-form">
       <textarea id="prompt" rows="1" aria-label="Task prompt" placeholder="Ask the worker to inspect, change, or explain something in its workspace…" required></textarea>
-      <div class="form-row">
-        <div class="task-indicator"><span class="task-orbit" aria-hidden="true"></span><span id="task-id">No active task</span></div>
-        <div class="panel-tools"><button class="send-button" id="send" type="submit"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m5 3 11 7-11 7Z"/></svg>Run task</button></div>
-      </div>
     </form>
   `,
 });

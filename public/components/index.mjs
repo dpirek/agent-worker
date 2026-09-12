@@ -5,3 +5,5 @@ import "./agent-info-panel.mjs";
 import "./worker-logs-panel.mjs";
 import "./agent-status-dialog.mjs";
 import "./layout-resizer.mjs";
+import "./workspace-files-panel.mjs";
+import "./worker-chat-panel.mjs";

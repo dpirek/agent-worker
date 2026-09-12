@@ -1,6 +1,7 @@
 const STORAGE_KEY = "agent-worker.panel-layout.v1";
 const DEFAULT_LAYOUT = Object.freeze({
   dashboard: Object.freeze([0.573, 0.427]),
+  leftRail: Object.freeze([0.3, 0.3, 0.4]),
   rightRail: Object.freeze([0.3725, 0.345, 0.2825]),
 });
 
@@ -17,11 +18,13 @@ function readLayout(storage) {
     const saved = JSON.parse(storage.getItem(STORAGE_KEY));
     return {
       dashboard: normalizedShares(saved?.dashboard, 2, DEFAULT_LAYOUT.dashboard),
+      leftRail: normalizedShares(saved?.leftRail, 3, DEFAULT_LAYOUT.leftRail),
       rightRail: normalizedShares(saved?.rightRail, 3, DEFAULT_LAYOUT.rightRail),
     };
   } catch {
     return {
       dashboard: [...DEFAULT_LAYOUT.dashboard],
+      leftRail: [...DEFAULT_LAYOUT.leftRail],
       rightRail: [...DEFAULT_LAYOUT.rightRail],
     };
   }
@@ -57,12 +60,21 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
   const layouts = {
     dashboard: {
       container: dashboard,
-      panels: [dashboard.querySelector("testing-repl"), rightRail],
+      panels: [dashboard.querySelector(".left-rail"), rightRail],
       prefix: "dashboard-track",
       shares: null,
       defaults: DEFAULT_LAYOUT.dashboard,
       axis: () => window.innerWidth <= 760 ? "y" : "x",
       minSize: 180,
+    },
+    "left-rail": {
+      container: dashboard.querySelector(".left-rail"),
+      panels: [dashboard.querySelector("testing-repl"), dashboard.querySelector("worker-chat-panel"), dashboard.querySelector("workspace-files-panel")],
+      prefix: "left-track",
+      shares: null,
+      defaults: DEFAULT_LAYOUT.leftRail,
+      axis: () => "y",
+      minSize: 90,
     },
     "right-rail": {
       container: rightRail,
@@ -74,12 +86,13 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
       prefix: "right-track",
       shares: null,
       defaults: DEFAULT_LAYOUT.rightRail,
-      axis: () => window.innerWidth > 640 && window.innerWidth <= 760 ? "x" : "y",
+      axis: () => "y",
       minSize: 72,
     },
   };
   const saved = readLayout(storage);
   layouts.dashboard.shares = saved.dashboard;
+  layouts["left-rail"].shares = saved.leftRail;
   layouts["right-rail"].shares = saved.rightRail;
 
   function applyLayout(layout) {
@@ -89,6 +102,7 @@ function initPanelResizing({ storage = window.localStorage } = {}) {
   function save() {
     writeLayout(storage, {
       dashboard: layouts.dashboard.shares,
+      leftRail: layouts["left-rail"].shares,
       rightRail: layouts["right-rail"].shares,
     });
   }
