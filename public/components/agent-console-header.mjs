@@ -4,7 +4,7 @@ defineComponent("agent-console-header", {
   classes: ["topbar"],
   attributes: { role: "banner" },
   template: `
-    <div class="brand-mark" aria-hidden="true">›<span class="terminal-cursor">_</span></div>
+    <div class="brand-mark"><img class="worker-avatar" src="/assets/avatars/developer.png" alt="Worker avatar"></div>
     <div class="brand-copy">
       <h1>Agent Worker Console</h1>
       <p class="subtitle" id="agent-description">Connecting to configured worker…</p>

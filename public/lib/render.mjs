@@ -2,7 +2,7 @@ import { escapeHtml, formatTime } from "./format.mjs";
 
 function officeHeaderStatus(orchestration = {}) {
   if (orchestration.status === "connected") {
-    return { className: "dot ok", text: "Agent connected to office" };
+    return { className: "dot ok", text: "Connected to office" };
   }
   if (orchestration.status === "configuration_error" || orchestration.status === "replaced") {
     return { className: "dot bad", text: `Office ${orchestration.status.replace("_", " ")}` };
@@ -11,7 +11,7 @@ function officeHeaderStatus(orchestration = {}) {
     return { className: "dot", text: "Office not configured" };
   }
   if (["connecting", "registering", "reconnecting"].includes(orchestration.status)) {
-    return { className: "dot", text: `Agent ${orchestration.status} to office` };
+    return { className: "dot", text: `${orchestration.status} to office` };
   }
   return { className: "dot", text: "Agent disconnected from office" };
 }

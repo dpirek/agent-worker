@@ -49,15 +49,15 @@ agent-status-dialog { display: contents; }
 .shell { width: 100%; height: 100dvh; min-height: 0; padding: 18px; display: flex; flex-direction: column; gap: var(--panel-gap); overflow: hidden; }
 .topbar, .panel, .status-dialog { border: 1px solid var(--line); background: linear-gradient(110deg, #0b1012ee, #0b1012fa); box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 4px #30383b; }
 .topbar { min-height: 0; flex: 0 0 104px; display: grid; grid-template-columns: 86px minmax(0, 1fr) auto; overflow: hidden; }
-.brand-mark { display: flex; align-items: center; justify-content: center; border-right: 1px solid var(--line-dim); font-size: 27px; font-weight: 800; }
-.terminal-cursor { display: inline-block; animation: terminal-blink 1s steps(1, end) infinite; }
-@keyframes terminal-blink { 0%, 48% { opacity: 1; } 49%, 100% { opacity: 0; } }
+.brand-mark { display: flex; align-items: center; justify-content: center; border-right: 1px solid var(--line-dim); padding: 8px; }
+.worker-avatar { display: block; width: 100%; max-width: 64px; max-height: 84px; object-fit: contain; image-rendering: pixelated; }
 .brand-copy { min-width: 0; padding: 12px 20px; align-self: center; }
 .subtitle { margin-top: 9px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .subtitle-meta { margin-top: 4px; color: #7f898c; font-size: 10px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .subtitle-meta strong { color: var(--muted); font-weight: 500; }
 .header-actions { display: flex; align-items: center; gap: 12px; padding: 20px; }
 .live { height: 58px; min-width: 196px; display: flex; align-items: center; justify-content: center; gap: 13px; border: 1px solid var(--line); color: var(--muted); text-transform: uppercase; }
+#health-text { font-size: 10px; }
 .dot { width: 11px; height: 11px; aspect-ratio: 1; flex: 0 0 11px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px currentColor; }
 .dot.ok { background: var(--green); }
 .dot.bad { background: var(--red); }
@@ -180,7 +180,7 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 640px) {
   .shell { padding: 9px; }
   .topbar { min-height: 0; flex-basis: 84px; grid-template-columns: 52px minmax(0, 1fr) auto; }
-  .brand-mark { font-size: 19px; }
+  .brand-mark { padding: 5px; }
   .brand-copy { padding: 10px 13px; }
   h1 { font-size: 16px; }
   .subtitle { margin-top: 4px; font-size: 10px; }
@@ -211,5 +211,4 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 @media (prefers-reduced-motion: reduce) {
   .retro-pending .shell { visibility: visible; animation: none; }
   .retro-char { opacity: 1; animation: none; }
-  .terminal-cursor { animation: none; }
 }
