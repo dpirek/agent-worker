@@ -1,5 +1,6 @@
 import { Marked } from "/vendor/marked.mjs";
 import DOMPurify from "/vendor/dompurify.mjs";
+import { workspaceLink } from "./workspace-links.mjs";
 
 const markdown = new Marked({ gfm: true, breaks: true, async: false });
 
@@ -15,12 +16,20 @@ export function renderMarkdown(text) {
   });
   for (const link of fragment.querySelectorAll("a[href]")) {
     try {
-      const url = new URL(link.getAttribute("href"), document.baseURI);
+      const original = link.getAttribute("href");
+      const rewritten = workspaceLink(original, location.origin);
+      const url = new URL(rewritten, document.baseURI);
       if (!["http:", "https:", "mailto:"].includes(url.protocol)) link.removeAttribute("href");
-      else { link.target = "_blank"; link.rel = "noopener noreferrer"; }
+      else {
+        link.setAttribute("href", rewritten);
+        if (rewritten !== original && link.textContent === original) link.textContent = rewritten;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
     } catch { link.removeAttribute("href"); }
   }
   for (const image of fragment.querySelectorAll("img")) {
+    if (image.hasAttribute("src")) image.setAttribute("src", workspaceLink(image.getAttribute("src"), location.origin));
     image.loading = "lazy";
     image.referrerPolicy = "no-referrer";
   }

@@ -790,3 +790,28 @@ test("serves the pinned Markdown browser modules without exposing node_modules",
   }
   assert.equal((await fetch(`${url}/vendor/package.json`)).status,404);
 });
+
+test("allows Office connection controls through an HTTPS reverse proxy", async (t) => {
+  const office=officeHarness();
+  const {server,url}=await listeningServer({
+    env:{AI_HARNESS_OFFICE_URL:'ws://office.example',WORKER_PUBLIC_URL:'https://agent-worker-2.bohoosh.com'},
+    officeConnectionFactory:office.factory,runTask:async()=>'',onInfo:()=>{},
+  });
+  t.after(()=>server.close());
+  const change=(origin,host='agent-worker-2.bohoosh.com',extra={})=>fetch(`${url}/api/office/connection`,{
+    method:'POST',headers:{'content-type':'application/json',origin,host,...extra},body:JSON.stringify({action:'disconnect'}),
+  });
+  assert.equal((await change('https://agent-worker-2.bohoosh.com')).status,200);
+  // A proxy may replace Host with its internal upstream address.
+  assert.equal((await change('https://agent-worker-2.bohoosh.com','127.0.0.1:3002')).status,200);
+  assert.equal((await change('https://unrelated.example')).status,403);
+  assert.equal((await change('null')).status,403);
+  assert.equal((await change('https://unrelated.example','127.0.0.1:3002',{'x-forwarded-host':'unrelated.example','x-forwarded-proto':'https'})).status,403);
+});
+
+test("allows preserved HTTPS Host without a configured public URL", async (t) => {
+  const {server,url}=await listeningServer({runTask:async()=>''});
+  t.after(()=>server.close());
+  const response=await fetch(`${url}/api/office/connection`,{method:'POST',headers:{'content-type':'application/json',origin:url.replace(/^http:/,'https:')},body:JSON.stringify({action:'disconnect'})});
+  assert.equal(response.status,200);
+});
