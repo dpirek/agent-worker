@@ -778,3 +778,15 @@ test("records incoming and outgoing Office and REPL chat with persisted paginati
   t.after(()=>second.server.close());
   assert.equal((await (await fetch(`${second.url}/api/messages`)).json()).messages.length,4);
 });
+
+test("serves the pinned Markdown browser modules without exposing node_modules", async (t) => {
+  const {server,url}=await listeningServer({runTask:async()=>''});
+  t.after(()=>server.close());
+  for(const module of ['marked','dompurify']) {
+    const response=await fetch(`${url}/vendor/${module}.mjs`);
+    assert.equal(response.status,200);
+    assert.match(response.headers.get('content-type'),/javascript/);
+    assert.match(await response.text(),/export/);
+  }
+  assert.equal((await fetch(`${url}/vendor/package.json`)).status,404);
+});

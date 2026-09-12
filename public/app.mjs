@@ -50,9 +50,11 @@ async function refreshStatus() {
     const data = await fetchStatus();
     renderer.renderStatus(data);
     officeEnabled = data.orchestration.enabled;
-    officeButton.textContent = officePending ? "Please wait…" : officeEnabled ? "Disconnect" : "Connect";
+    if (officePending) elements.healthText.textContent = "Updating connection…";
+    officeButton.setAttribute("aria-busy", String(officePending));
     officeButton.disabled = officePending || !data.orchestration.configured;
     officeButton.title = !data.orchestration.configured ? "Set AI_HARNESS_OFFICE_URL to connect" : officeEnabled ? "Disconnect from Office and stop active Office tasks" : "Connect to Office";
+    officeButton.setAttribute("aria-label", `${elements.healthText.textContent}. ${officeButton.title}`);
     void chat.refresh();
   } catch (error) {
     renderer.renderOffline(error);
@@ -104,7 +106,8 @@ officeButton.addEventListener("click", async () => {
   if (officePending) return;
   officePending = true;
   officeButton.disabled = true;
-  officeButton.textContent = "Please wait…";
+  elements.healthText.textContent = "Updating connection…";
+  officeButton.setAttribute("aria-busy", "true");
   try {
     const response = await fetch("/api/office/connection", {
       method: "POST", headers: { "content-type": "application/json" },

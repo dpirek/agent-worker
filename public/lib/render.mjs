@@ -13,7 +13,7 @@ function officeHeaderStatus(orchestration = {}) {
   if (["connecting", "registering", "reconnecting"].includes(orchestration.status)) {
     return { className: "dot", text: `Agent ${orchestration.status} to office` };
   }
-  return { className: "dot", text: "Agent disconnected from office" };
+  return { className: "dot", text: "Disconnected from office" };
 }
 
 function createRenderer(elements) {

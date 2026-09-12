@@ -1,3 +1,5 @@
+import { renderMarkdown } from "./markdown.mjs";
+
 export function initChat() {
   const feed = document.getElementById("chat-feed"), messages = document.getElementById("chat-messages");
   const older = document.getElementById("chat-older"), state = document.getElementById("chat-state");
@@ -19,8 +21,8 @@ export function initChat() {
       label.className = "chat-meta";
       label.textContent = `${entry.direction === "incoming" ? "↓ Incoming" : "↑ Outgoing"} · ${entry.source} · ${new Date(entry.createdAt).toLocaleString()}${entry.state ? ` · ${entry.state}` : ""}`;
       const body = document.createElement("div");
-      body.className = "chat-text";
-      body.textContent = entry.text;
+      body.className = "chat-text markdown-body";
+      body.append(renderMarkdown(entry.text));
       row.append(label, body);
       if (entry.taskId || entry.messageId) {
         const context = document.createElement("div");
