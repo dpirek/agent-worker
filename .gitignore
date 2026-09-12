@@ -1,4 +1,7 @@
 .env
+.env.developer
+.env.researcher
+.env.designer
 .workspace/
 node_modules/
 npm-debug.log*
