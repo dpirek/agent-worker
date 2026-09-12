@@ -27,4 +27,4 @@ services:
       PROVIDER_NAME: openrouter
       PROVIDER_URL: https://openrouter.ai/api/v1
       PROVIDER_API_KEY: ${PROVIDER_API_KEY}
-      PROVIDER_MODEL: deepseek/deepseek-v4-pro
+      PROVIDER_MODEL: ${PROVIDER_MODEL}
