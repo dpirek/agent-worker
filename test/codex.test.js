@@ -126,7 +126,7 @@ test("advertises the local Codex runtime without provider credentials", () => {
 
 test("names the Codex worker after the current computer by default", () => {
   const env = codexWorkerEnvironment({ WORKER_NAME: "Generic Worker" });
-  assert.equal(env.WORKER_NAME, `codex-${os.hostname()}`);
+  assert.equal(env.WORKER_NAME, `codex-${os.hostname().replace(/[^A-Za-z0-9_-]+/g, "-")}`.slice(0, 100));
 });
 
 test("uses Office credentials from .env instead of stale shell values", async (t) => {

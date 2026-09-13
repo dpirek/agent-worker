@@ -10,6 +10,7 @@
     "start": "node server.js",
     "start:dev": "nodemon server.js",
     "start:codex": "CODEX_WORKER_NAME=codex-agent node codex.js",
+    "start:claude": "PORT=8098 node claude.js",
     "test": "node --test"
   },
   "repository": {

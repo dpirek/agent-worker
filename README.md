@@ -54,6 +54,26 @@ Office work is unattended; Codex still runs in the configured sandbox, which def
 `workspace-write`. Each request starts a separate local Codex conversation so concurrent tasks and
 unrelated direct messages cannot contaminate one another.
 
+### Use a local Claude Code session
+
+[`claude.js`](claude.js) connects a locally authenticated Claude Code CLI to the same Office worker
+protocol. It handles assignments, direct messages, stop commands, task workspaces, and Office project
+MCP servers:
+
+```sh
+claude auth login            # only if Claude Code is not already authenticated
+npm run start:claude
+```
+
+The adapter reads Office credentials and worker settings from `.env`, overriding stale shell values.
+Optional Claude settings are `CLAUDE_EXECUTABLE`, `CLAUDE_WORKER_NAME`, `CLAUDE_MODEL`,
+`CLAUDE_PERMISSION_MODE`, and `CLAUDE_MAX_OUTPUT_BYTES`. The default name is `claude-<hostname>`;
+an empty model uses the CLI's local default. Each Office request starts a fresh, non-persistent Claude
+session. The default `bypassPermissions` mode lets unattended coding tasks use Claude's tools without
+interactive prompts. Claude Code does not gain a workspace sandbox from this setting, so run this
+adapter only with trusted assignments and on a machine where that access is appropriate. Set
+`CLAUDE_PERMISSION_MODE=acceptEdits` or `dontAsk` to restrict unattended tool access.
+
 ### YAML-managed instance
 
 [`agent-worker.yaml`](agent-worker.yaml) provides a Docker-Compose-style alternative. Each entry in
@@ -196,7 +216,7 @@ either from `WORKER_TOOLS` to disable model-initiated collaboration. Recent task
 Office assignments can supply task-scoped `mcpServers`. The worker automatically
 resolves their relative URLs against the Office HTTP origin, authenticates,
 initializes MCP, and attaches the discovered read-only project tools to that task.
-This works with both the built-in agent and the Codex adapter. No additional
+This works with the built-in agent, Codex adapter, and Claude adapter. No additional
 `AI_HARNESS_MCP_SERVERS` setting is required for Office project access.
 
 The console header shows MCP status separately from the Office connection:

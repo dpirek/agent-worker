@@ -155,7 +155,8 @@ function createCodexRunner({
 }
 
 function codexWorkerEnvironment(env = process.env) {
-  const workerName = String(env.CODEX_WORKER_NAME || "").trim() || `codex-${os.hostname()}`;
+  const workerName = String(env.CODEX_WORKER_NAME || "").trim()
+    || `codex-${os.hostname().replace(/[^A-Za-z0-9_-]+/g, "-")}`.slice(0, 100);
   return {
     ...env,
     WORKER_NAME: workerName,
