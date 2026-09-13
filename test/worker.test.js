@@ -815,3 +815,58 @@ test("allows preserved HTTPS Host without a configured public URL", async (t) =>
   const response=await fetch(`${url}/api/office/connection`,{method:'POST',headers:{'content-type':'application/json',origin:url.replace(/^http:/,'https:')},body:JSON.stringify({action:'disconnect'})});
   assert.equal(response.status,200);
 });
+
+test('reports verified Office MCP status and clears task access on cancellation', async t => {
+  const office = officeHarness();
+  let releaseInitialization;
+  const initialization = new Promise(resolve => { releaseInitialization = resolve; });
+  const {server, url} = await listeningServer({
+    env: {AI_HARNESS_OFFICE_URL:'wss://office.example/ws/workers'},
+    officeConnectionFactory: office.factory, onInfo:()=>{},
+    fetchImpl: async (endpoint, options) => {
+      if (!endpoint.includes('/mcp/')) return new Response('{"ok":true}');
+      assert.equal(options.headers.Authorization, 'Bearer private-task-credential');
+      const body = JSON.parse(options.body);
+      if (endpoint.endsWith('/rejected')) return new Response('private-task-credential', {status:401});
+      if (body.method === 'initialize') await initialization;
+      if (body.method === 'notifications/initialized') return new Response(null,{status:202});
+      const result = body.method === 'initialize' ? {protocolVersion:'2025-11-25'}
+        : {tools:[{name:'project_get_context',inputSchema:{type:'object'}}]};
+      return Response.json({jsonrpc:'2.0',id:body.id,result});
+    },
+    runTask: async (_prompt, context) => {
+      assert.equal(context.officeMcpTools[0].name,'office_project__project_get_context');
+      assert.equal(context.officeHttpOrigin,'https://office.example');
+      await new Promise((resolve,reject)=>{
+        context.signal.addEventListener('abort',()=>reject(new Error('cancelled')), {once:true});
+      });
+    },
+  });
+  t.after(()=>server.close());
+  const status = async()=> (await (await fetch(`${url}/api/status`)).json());
+  const wait = async predicate => {
+    for (let i=0;i<100;i++) {const value=await status();if(predicate(value))return value;await new Promise(r=>setTimeout(r,5));}
+    assert.fail('Status did not reach expected state');
+  };
+  assert.equal((await status()).execution.officeMcp.status,'waiting');
+  const deliver = taskId => office.deliver({type:'task',taskId,
+    message:{messageId:`msg-${taskId}`,parts:[{kind:'text',text:'Inspect project'}]},
+    mcpServers:{office_project:{type:'http',url:`/mcp/projects/project/tasks/${taskId}`,headers:{Authorization:'Bearer private-task-credential'}}},
+  });
+  deliver('verified');
+  await wait(s=>s.execution.officeMcp.status==='connecting');
+  releaseInitialization();
+  const connected=await wait(s=>s.execution.officeMcp.status==='connected');
+  assert.equal(connected.execution.officeMcp.toolCount,1);
+  assert.ok(connected.execution.officeMcp.activeTasks[0].verifiedAt);
+  assert.ok(!JSON.stringify(connected).includes('private-task-credential'));
+  office.registration().onTaskCancel({taskId:'verified',inReplyTo:'msg-verified'},{connectionId:'connection-1'});
+  await wait(s=>s.tasks.find(task=>task.taskId==='verified')?.mcp.status==='closed');
+  assert.equal((await status()).execution.officeMcp.status,'waiting');
+  assert.equal(office.sent.filter(message=>message.taskId==='verified').length,1);
+  deliver('rejected');
+  const failed=await wait(s=>s.execution.officeMcp.status==='error');
+  assert.match(failed.execution.officeMcp.error,/HTTP 401/);
+  assert.ok(!JSON.stringify(failed).includes('private-task-credential'));
+  await wait(s=>s.queue.active===0);
+});

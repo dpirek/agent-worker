@@ -191,6 +191,29 @@ present. The default tool set includes `list_teammates` and `ask_teammate`; depl
 either from `WORKER_TOOLS` to disable model-initiated collaboration. Recent task history is stored in
 `WORKER_TASK_DB` and remains visible after restart.
 
+## Office project MCP status
+
+Office assignments can supply task-scoped `mcpServers`. The worker automatically
+resolves their relative URLs against the Office HTTP origin, authenticates,
+initializes MCP, and attaches the discovered read-only project tools to that task.
+This works with both the built-in agent and the Codex adapter. No additional
+`AI_HARNESS_MCP_SERVERS` setting is required for Office project access.
+
+The console header shows MCP status separately from the Office connection:
+
+- **MCP waiting**: automatic setup is enabled; waiting for a task with credentials.
+- **MCP connecting**: initialization and tool discovery are running.
+- **MCP connected**: credentials and tool discovery succeeded for an active task.
+- **MCP not supplied**: an active assignment has no MCP configuration.
+- **MCP error**: configuration, authentication, or an MCP request failed.
+- **MCP disconnected**: the worker is disconnected from Office.
+
+Hover over the indicator for tool counts or error details. Agent information,
+worker status, and individual task details also show MCP state. Credentials stay
+separate for each task and are excluded from status responses and stored task
+history. Task completion, cancellation, and disconnection release MCP access;
+the indicator returns to waiting when there are no active task connections.
+
 ## Test
 
 ```sh
