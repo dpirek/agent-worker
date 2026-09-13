@@ -16,6 +16,21 @@ function officeHeaderStatus(orchestration = {}) {
   return { className: "dot", text: "Disconnected from office" };
 }
 
+function officeMcpHeaderStatus(mcp = {}) {
+  if (mcp.status === "connected") return { className: "dot ok", text: "MCP connected",
+    detail: `Office MCP verified: ${mcp.connectedTasks} active task connection(s), ${mcp.toolCount} tools discovered. Credentials are task-scoped.` };
+  if (mcp.status === "connecting") return { className: "dot", text: "MCP connecting",
+    detail: "Checking task credentials, initializing MCP, and discovering project tools." };
+  if (mcp.status === "error") return { className: "dot bad", text: "MCP error",
+    detail: `${mcp.error || "Office MCP verification failed."}${mcp.connectedTasks ? ` ${mcp.connectedTasks} other task connection(s) remain connected.` : ""}` };
+  if (mcp.status === "not_provided") return { className: "dot", text: "MCP not supplied",
+    detail: "The active Office task did not include an MCP configuration. Ask the Office to include task-scoped mcpServers." };
+  if (mcp.status === "waiting") return { className: "dot", text: "MCP waiting",
+    detail: "Automatic Office MCP is enabled. Waiting for an assignment with task-scoped credentials; no active MCP connection." };
+  return { className: "dot", text: "MCP disconnected",
+    detail: "Connect to Office to receive assignments with task-scoped MCP access." };
+}
+
 function createRenderer(elements) {
   const expandedTasks = new Set();
 
@@ -90,6 +105,7 @@ function createRenderer(elements) {
           ${taskDetail("Message ID", task.messageId)}
           ${taskDetail("Started", task.startedAt ? new Date(task.startedAt).toLocaleString() : "—")}
           ${taskDetail("Finished", task.finishedAt ? new Date(task.finishedAt).toLocaleString() : "—")}
+          ${task.mcp ? taskDetail("Office MCP", `${task.mcp.status} · ${task.mcp.toolCount || 0} tools${task.mcp.error ? ` · ${task.mcp.error}` : ""}`) : ""}
           ${failure}${deliveryError}
         </div></td>
       </tr>`;
@@ -104,6 +120,7 @@ function createRenderer(elements) {
       ["Tools", data.execution.tools.join(", ") || "none"],
       ["Model", data.provider.model],
       ["Provider", data.provider.name],
+      ["Office MCP", officeMcpHeaderStatus(data.execution.officeMcp).detail],
     ];
     elements.agentInfo.innerHTML = `<dl class="agent-grid">${rows.map(([key, value]) => `<div class="agent-row"><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>`;
   }
@@ -131,6 +148,10 @@ function createRenderer(elements) {
     const headerStatus = officeHeaderStatus(data.orchestration);
     elements.healthDot.className = headerStatus.className;
     elements.healthText.textContent = headerStatus.text;
+    const mcpStatus = officeMcpHeaderStatus(data.execution.officeMcp);
+    elements.mcpDot.className = mcpStatus.className;
+    elements.mcpText.textContent = mcpStatus.text;
+    elements.mcpIndicator.title = mcpStatus.detail;
     elements.agentDescription.textContent = `${data.agent.name} — ${data.agent.description}`;
     elements.workspaceSummary.textContent = data.execution.workspace;
     elements.workspaceSummary.title = data.execution.workspace;
@@ -142,7 +163,8 @@ function createRenderer(elements) {
       ["Workspace", data.execution.workspace], ["Task history", data.execution.taskDatabase], ["Concurrency", data.execution.concurrency],
       ["Max turns", data.execution.maxTurns], ["Tools", data.execution.tools.join(", ") || "none"],
       ["Prompts", data.execution.systemPromptOverrides.join(", ") || "built-in defaults"],
-      ["MCP", data.execution.mcpConfigured ? "configured" : "not configured"],
+      ["Office MCP", mcpStatus.detail],
+      ["Additional MCP", data.execution.mcpConfigured ? "configured" : "not configured"],
       ["Office", data.orchestration.status],
       ["Office endpoint", data.orchestration.endpoint || "not configured"],
       ["Direct messages", `${data.queue.directMessages?.active || 0} active · ${data.queue.directMessages?.queued || 0} queued`],
@@ -154,6 +176,9 @@ function createRenderer(elements) {
   }
 
   function renderOffline(error) {
+    elements.mcpDot.className = "dot bad";
+    elements.mcpText.textContent = "MCP unknown";
+    elements.mcpIndicator.title = "Worker is unreachable; MCP connection cannot be verified.";
     elements.healthDot.className = "dot bad";
     elements.healthText.textContent = `Offline: ${error.message}`;
   }
@@ -172,4 +197,4 @@ function createRenderer(elements) {
   return { addMessage, renderOffline, renderStatus, toggleTask };
 }
 
-export { createRenderer, officeHeaderStatus };
+export { createRenderer, officeHeaderStatus, officeMcpHeaderStatus };

@@ -304,3 +304,10 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
   .workspace-panel.is-expanded { inset: 9px; }
   .workspace-panel.is-expanded .workspace-body { grid-template-columns: minmax(100px, 35%) minmax(0, 1fr); }
 }
+
+.mcp-indicator { display: flex; align-items: center; gap: 8px; max-width: 140px; padding: 8px; border: 1px solid var(--line-dim); color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.mcp-indicator .dot { width: 7px; height: 7px; flex-basis: 7px; }
+.state-cancelled { color: var(--amber); }
+@media (max-width: 640px) {
+  .mcp-indicator { max-width: 84px; padding: 5px; gap: 5px; font-size: 9px; }
+}

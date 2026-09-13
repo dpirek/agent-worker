@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
 import { createWorkerServer, ensureWorkerWorkspace } from "./lib/worker.js";
+import { OFFICE_MCP_INSTRUCTIONS } from "./lib/office-mcp.js";
 
 const SANDBOX_MODES = new Set(["read-only", "workspace-write", "danger-full-access"]);
 const DEFAULT_MAX_DIAGNOSTIC_BYTES = 32 * 1024;
@@ -81,13 +82,22 @@ function createCodexRunner({
   if (!executable) throw new Error("CODEX_EXECUTABLE must not be empty.");
   const diagnosticLimit = positiveInteger(env.CODEX_MAX_DIAGNOSTIC_BYTES, DEFAULT_MAX_DIAGNOSTIC_BYTES);
 
-  return async function runCodex(prompt, { workspace, signal } = {}) {
+  return async function runCodex(prompt, { workspace, signal, officeMcpServers = [], officeHttpOrigin = "" } = {}) {
     if (!workspace) throw new Error("A task workspace is required for Codex execution.");
     if (signal?.aborted) throw signal.reason || new Error("Codex execution was stopped.");
 
     const outputDirectory = await fsp.mkdtemp(path.join(os.tmpdir(), "agent-worker-codex-"));
     const outputPath = path.join(outputDirectory, "last-message.md");
     const args = codexArguments({ env, workspace, outputPath });
+    const taskEnv = { ...env };
+    const secrets = [];
+    officeMcpServers.forEach((server, index) => {
+      const variable = `AGENT_WORKER_TASK_MCP_${index}`;
+      taskEnv[variable] = server.headers.Authorization;
+      secrets.push(server.headers.Authorization, server.headers.Authorization.replace(/^Bearer /i, ""));
+      args.splice(args.length - 1, 0, "--config", `mcp_servers.${server.label}={url=${JSON.stringify(server.url)},env_http_headers={Authorization=${JSON.stringify(variable)}},enabled=true,startup_timeout_sec=30,tool_timeout_sec=30}`);
+    });
+    const redact = value => secrets.reduce((text, secret) => text.replaceAll(secret, "[redacted]"), value);
     let stderr = "";
     let stdout = "";
     let child;
@@ -96,7 +106,7 @@ function createCodexRunner({
       const result = await new Promise((resolve, reject) => {
         child = spawnImpl(executable, args, {
           cwd: workspace,
-          env,
+          env: taskEnv,
           shell: false,
           stdio: ["pipe", "pipe", "pipe"],
         });
@@ -118,13 +128,15 @@ function createCodexRunner({
         child.once("error", (error) => finish(reject, error));
         child.once("close", (code, processSignal) => finish(resolve, { code, processSignal }));
         child.stdin.on("error", () => {});
-        child.stdin.end(String(prompt));
+        child.stdin.end(officeMcpServers.length
+          ? `${OFFICE_MCP_INSTRUCTIONS}\nOffice HTTP origin: ${officeHttpOrigin}\n\n${String(prompt)}`
+          : String(prompt));
       });
 
       if (signal?.aborted) throw signal.reason || new Error("Codex execution was stopped.");
       if (result.code !== 0) {
         const detail = stderr.trim() || `process exited with ${result.processSignal || `code ${result.code}`}`;
-        throw new Error(`Codex CLI failed: ${detail}`);
+        throw new Error(`Codex CLI failed: ${redact(detail)}`);
       }
 
       let answer = "";
@@ -133,7 +145,7 @@ function createCodexRunner({
       }
       answer ||= latestAgentMessage(stdout);
       if (!answer) throw new Error("Codex CLI completed without a final response.");
-      return answer;
+      return redact(answer);
     } finally {
       try { await fsp.rm(outputDirectory, { recursive: true, force: true }); } catch (error) {
         onInfo(`Unable to clean Codex response directory: ${error.message}`);
