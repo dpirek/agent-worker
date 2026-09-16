@@ -41,7 +41,7 @@ test('initializes, discovers tools, uses task authentication and negotiated prot
  for(const r of mock.requests){assert.equal(r.headers.Authorization,'Bearer secret-a');assert.equal(r.redirect,'error');}
  assert.equal(mock.requests[1].headers['MCP-Protocol-Version'],'2025-06-18');
  assert.equal(mock.requests[1].headers['MCP-Session-Id'],'session-task-a');
- assert.deepEqual(mock.requests[3].body.params,{name:'project_read_file',arguments:{path:'notes.md',offset:64000}});
+ assert.deepEqual(mock.requests[3].body.params,{name:'project_read_file',arguments:{path:'notes.md',offset:64000,projectId:'project-a'}});
  await session.close();
  assert.equal(mock.requests.at(-1).method,'DELETE');
  const count=mock.requests.length;

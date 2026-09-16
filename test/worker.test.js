@@ -39,6 +39,8 @@ test("answers a correlated direct message without creating a task", async (t) =>
     officeConnectionFactory: office.factory,
     runTask: async (prompt, context) => {
       directWorkspace = context.workspace;
+      assert.equal(context.projectId, "alpha");
+      assert.equal(context.officeTaskId, "office-task-1");
       return `Version 1.2.3 answers: ${prompt}`;
     },
   });
@@ -46,6 +48,7 @@ test("answers a correlated direct message without creating a task", async (t) =>
 
   office.deliverDirect({
     type: "direct_message",
+    projectId: "alpha", officeTaskId: "office-task-1",
     message: {
       messageId: "direct-001",
       role: "user",

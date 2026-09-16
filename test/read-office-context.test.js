@@ -49,3 +49,17 @@ test("reads completed summaries, full task details, and Office messages", async 
   const messages = await tool.execute({ view: "messages", query: null, full_details: null, limit: 5 });
   assert.equal(messages.messages[0].text, "What changed?");
 });
+
+
+test("context requests use each task's project without leaking concurrent task state", async () => {
+  const seen = [];
+  const tool = projectId => createReadOfficeContextTool({
+    env: { AI_HARNESS_OFFICE_URL: 'https://office.example', AI_HARNESS_WORKER_TOKEN: 'secret', AI_HARNESS_OFFICE_PROJECT_ID: projectId },
+    fetchImpl: async (url, options) => { seen.push([url.pathname, url.searchParams.get('projectId'), options.headers.authorization]); return new Response(JSON.stringify({ tasks: [{id:'task'}], records: [], messages: [] })); },
+  });
+  const alpha = tool('alpha'), beta = tool('beta');
+  await Promise.all([alpha.execute({view:'messages'}), beta.execute({view:'completed_tasks'}), alpha.execute({view:'task_details',query:'task'})]);
+  assert.deepEqual(seen, [['/api/chat','alpha','Bearer secret'], ['/api/memory','beta','Bearer secret'], ['/api/tasks','alpha','Bearer secret']]);
+  await assert.rejects(alpha.execute({view:'messages',projectId:'beta'}), /does not match/);
+  assert.equal(seen.length, 3);
+});

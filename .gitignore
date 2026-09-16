@@ -2,6 +2,7 @@
 .env.developer
 .env.researcher
 .env.designer
+.env.secretary
 .workspace/
 node_modules/
 npm-debug.log*
