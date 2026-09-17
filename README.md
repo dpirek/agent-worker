@@ -43,6 +43,17 @@ node bin/agent-worker.js --config examples/research-assistant.yaml --tui
 node bin/agent-worker.js --config agent-worker.yaml --service developer --tui
 ```
 
+You can also select an environment file directly:
+
+```sh
+node bin/agent-worker.js --config .env.secretary --tui
+```
+
+Files named `.env`, `.env.*`, or `*.env` are loaded as environment files. Their
+values override inherited shell variables; unspecified values inherit from the
+shell. Relative workspace and database paths resolve from the selected file's
+directory. `--service` applies only to YAML manifests.
+
 ### Use a local Codex session
 
 [`codex.js`](codex.js) is an Agent Office adapter for the locally installed Codex CLI. It uses the

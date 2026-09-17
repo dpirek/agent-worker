@@ -6,16 +6,16 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { createWorkerServer, ensureWorkerWorkspace } from "../lib/worker.js";
-import { readWorkerManifest } from "../lib/worker-manifest.js";
+import { readWorkerConfig } from "../lib/worker-manifest.js";
 import { createTerminalMonitor } from "../lib/tui.js";
 
 function usage() {
   return `Usage: agent-worker [--config PATH] [--service NAME] [--tui]
 
-Starts one Agent Worker instance from a Docker-Compose-style YAML manifest.
+Starts one Agent Worker instance from a YAML manifest or .env file.
 
 Options:
-  -c, --config PATH   Manifest path (default: agent-worker.yaml)
+  -c, --config PATH   YAML or .env file path (default: agent-worker.yaml)
   -s, --service NAME  Service to start; optional when the manifest has one service
       --tui           Show the terminal monitoring dashboard
   -h, --help          Show this help`;
@@ -37,10 +37,10 @@ async function main(argv = process.argv.slice(2)) {
     return null;
   }
 
-  const instance = readWorkerManifest({ filePath: values.config, serviceName: values.service });
+  const instance = readWorkerConfig({ filePath: values.config, serviceName: values.service });
   const env = instance.env;
-  if (!String(env.AI_HARNESS_OFFICE_URL || "").trim()) throw new Error("AI_HARNESS_OFFICE_URL is required in the selected worker service.");
-  if (!String(env.AI_HARNESS_WORKER_TOKEN || "").trim()) throw new Error("AI_HARNESS_WORKER_TOKEN is required in the selected worker service.");
+  if (!String(env.AI_HARNESS_OFFICE_URL || "").trim()) throw new Error("AI_HARNESS_OFFICE_URL is required in the selected worker configuration.");
+  if (!String(env.AI_HARNESS_WORKER_TOKEN || "").trim()) throw new Error("AI_HARNESS_WORKER_TOKEN is required in the selected worker configuration.");
 
   process.chdir(instance.directory);
   await ensureWorkerWorkspace(env);

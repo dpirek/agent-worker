@@ -6,7 +6,28 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { interpolate, readWorkerManifest } from "../lib/worker-manifest.js";
+import { interpolate, readWorkerManifest, readWorkerConfig } from "../lib/worker-manifest.js";
+
+test('loads a selected env file with file precedence and literal dotenv values', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'worker-env-'));
+  t.after(() => fs.rm(directory, {recursive:true,force:true}));
+  for (const filename of ['.env', '.env.secretary', 'secretary.env']) {
+    const filePath = path.join(directory, filename);
+    await fs.writeFile(filePath, 'export WORKER_NAME="Secretary Worker"\nPORT=3010\nEMPTY=\nLITERAL="${UNCHANGED}"\nPROMPT="first\nsecond"\n');
+    const hostEnv = {PORT:'9999',FALLBACK:'inherited',EMPTY:'old'};
+    const config = readWorkerConfig({filePath,hostEnv});
+    assert.equal(config.serviceName,'Secretary Worker');
+    assert.equal(config.directory,directory);
+    assert.equal(config.env.PORT,'3010');
+    assert.equal(config.env.FALLBACK,'inherited');
+    assert.equal(config.env.EMPTY,'');
+    assert.equal(config.env.LITERAL,'${UNCHANGED}');
+    assert.equal(config.env.PROMPT,'first\nsecond');
+    assert.equal(hostEnv.PORT,'9999');
+    assert.throws(()=>readWorkerConfig({filePath,serviceName:'secretary'}),/--service is only supported with YAML/);
+  }
+  assert.throws(()=>readWorkerConfig({filePath:path.join(directory,'.env.missing')}),/Unable to read worker env file/);
+});
 
 test("supports Docker-style variable interpolation", () => {
   assert.equal(interpolate("${SET}-${MISSING:-fallback}-$$HOME", { SET: "value" }), "value-fallback-$HOME");
@@ -48,11 +69,12 @@ test("requires --service when a manifest defines multiple instances", async (t) 
   assert.equal(readWorkerManifest({ filePath: manifestPath, serviceName: "two", hostEnv: {} }).serviceName, "two");
 });
 
+for (const format of ['YAML', 'env']) {
 for (const tui of [false, true]) {
-test(`the CLI launches a worker instance from YAML${tui ? ' with --tui (plain logs when piped)' : ''}`, async (t) => {
+test(`the CLI launches a worker instance from ${format}${tui ? ' with --tui (plain logs when piped)' : ''}`, async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "worker-cli-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
-  const manifestPath = path.join(directory, "worker.yaml");
+  const manifestPath = path.join(directory, format === 'env' ? '.env.secretary' : 'worker.yaml');
   await fs.writeFile(manifestPath, `
 version: "1"
 services:
@@ -70,8 +92,21 @@ services:
       PROVIDER_MODEL: test-model
 `, "utf8");
 
+  if (format === 'env') await fs.writeFile(manifestPath, `
+HOST=127.0.0.1
+PORT=0
+AI_HARNESS_OFFICE_URL=ws://127.0.0.1:9/ws/workers
+AI_HARNESS_WORKER_TOKEN=test-token
+WORKER_NAME="Env Test Worker"
+WORKER_TASK_DB=:memory:
+WORKER_WORKSPACE=.workspace
+PROVIDER_NAME=test
+PROVIDER_URL=https://models.example/v1
+PROVIDER_MODEL=test-model
+`);
+
   const cliPath = path.resolve("bin/agent-worker.js");
-  const child = spawn(process.execPath, [cliPath, "--config", manifestPath, "--service", "test-worker", ...(tui ? ['--tui'] : [])], {
+  const child = spawn(process.execPath, [cliPath, "--config", manifestPath, ...(format === 'YAML' ? ['--service', 'test-worker'] : []), ...(tui ? ['--tui'] : [])], {
     cwd: path.resolve("."),
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -98,11 +133,13 @@ services:
   assert.equal(health.ok, true);
   assert.match(health.orchestration, /connecting|reconnecting|registering|disconnected/);
   const status = await (await fetch(`http://127.0.0.1:${port}/api/status`)).json();
-  assert.equal(status.agent.name, 'YAML Test Worker');
+  assert.equal(status.agent.name, format === 'YAML' ? 'YAML Test Worker' : 'Env Test Worker');
+  assert.equal(status.execution.workspace, await fs.realpath(path.join(directory, '.workspace')));
   assert.equal(status.provider.model, 'test-model');
   assert.doesNotMatch(output, /\x1b|test-token/);
   child.kill("SIGTERM");
   const [exitCode] = await once(child, "exit");
   assert.equal(exitCode, 0);
 });
+}
 }
