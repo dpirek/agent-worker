@@ -17,10 +17,12 @@ function officeHeaderStatus(orchestration = {}) {
 }
 
 function officeMcpHeaderStatus(mcp = {}) {
+  if (mcp.status === "verified") return { className: "dot ok", text: "MCP verified",
+    detail: `Office MCP connectivity test passed: initialization, ${mcp.connectivity?.toolCount || 0} tools discovered, and project context read. Task access is verified separately on assignment.` };
   if (mcp.status === "connected") return { className: "dot ok", text: "MCP connected",
     detail: `Office MCP verified: ${mcp.connectedTasks} active task connection(s), ${mcp.toolCount} tools discovered. Credentials are task-scoped.` };
   if (mcp.status === "connecting") return { className: "dot", text: "MCP connecting",
-    detail: "Checking task credentials, initializing MCP, and discovering project tools." };
+    detail: "Checking MCP credentials, initialization, tool discovery, and Office connectivity." };
   if (mcp.status === "error") return { className: "dot bad", text: "MCP error",
     detail: `${mcp.error || "Office MCP verification failed."}${mcp.connectedTasks ? ` ${mcp.connectedTasks} other task connection(s) remain connected.` : ""}` };
   if (mcp.status === "not_provided") return { className: "dot", text: "MCP not supplied",
