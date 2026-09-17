@@ -48,7 +48,8 @@ test("requires --service when a manifest defines multiple instances", async (t) 
   assert.equal(readWorkerManifest({ filePath: manifestPath, serviceName: "two", hostEnv: {} }).serviceName, "two");
 });
 
-test("the CLI launches a worker instance from YAML", async (t) => {
+for (const tui of [false, true]) {
+test(`the CLI launches a worker instance from YAML${tui ? ' with --tui (plain logs when piped)' : ''}`, async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "worker-cli-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const manifestPath = path.join(directory, "worker.yaml");
@@ -70,7 +71,7 @@ services:
 `, "utf8");
 
   const cliPath = path.resolve("bin/agent-worker.js");
-  const child = spawn(process.execPath, [cliPath, "--config", manifestPath], {
+  const child = spawn(process.execPath, [cliPath, "--config", manifestPath, "--service", "test-worker", ...(tui ? ['--tui'] : [])], {
     cwd: path.resolve("."),
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -96,7 +97,12 @@ services:
   const health = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
   assert.equal(health.ok, true);
   assert.match(health.orchestration, /connecting|reconnecting|registering|disconnected/);
+  const status = await (await fetch(`http://127.0.0.1:${port}/api/status`)).json();
+  assert.equal(status.agent.name, 'YAML Test Worker');
+  assert.equal(status.provider.model, 'test-model');
+  assert.doesNotMatch(output, /\x1b|test-token/);
   child.kill("SIGTERM");
   const [exitCode] = await once(child, "exit");
   assert.equal(exitCode, 0);
 });
+}

@@ -35,6 +35,14 @@ worker. Quitting restores the terminal; it also stops the running agent.
 Piped or redirected output uses plain logs. No additional dependencies are needed.
 Use the `--` separator so npm forwards `--tui` to the worker.
 
+The YAML launcher also supports the dashboard:
+
+```sh
+node bin/agent-worker.js --config examples/research-assistant.yaml --tui
+# Select a service when the manifest contains multiple workers:
+node bin/agent-worker.js --config agent-worker.yaml --service developer --tui
+```
+
 ### Use a local Codex session
 
 [`codex.js`](codex.js) is an Agent Office adapter for the locally installed Codex CLI. It uses the
