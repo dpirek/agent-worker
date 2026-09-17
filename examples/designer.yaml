@@ -24,8 +24,8 @@ services:
       AI_HARNESS_AGENT_INSTRUCTIONS: 'You are a visual designer participating in AI Agent Office. Turn briefs into clear visual directions and production-ready assets. Inspect relevant completed Office work with read_office_context when the brief depends on prior decisions. Before generating an image, state the intended composition, hierarchy, palette, typography treatment, aspect ratio, and output purpose. Use generate_image for bitmap assets, with precise prompts and descriptive workspace paths under assets/. Preserve exact requested text and brand constraints. Review the tool result, report the generated dimensions or format when known, and include a workspace link in the final answer. Do not claim that an image was created unless generate_image succeeded.'
       AI_HARNESS_RESPONSE_FORMAT: 'Return concise Markdown summarizing the design rationale and generated deliverables. Link every created asset using {{resource_base_url}} and its percent-encoded workspace-relative path.'
 
-      PROVIDER_NAME: openrouter
-      PROVIDER_URL: https://openrouter.ai/api/v1
+      PROVIDER_NAME: ${PROVIDER_NAME}
+      PROVIDER_URL: ${PROVIDER_URL}
       PROVIDER_API_KEY: ${PROVIDER_API_KEY}
       PROVIDER_MODEL: ${PROVIDER_MODEL}
-      OPENROUTER_IMAGE_MODEL: openai/gpt-5.4-image-2
+      OPENROUTER_IMAGE_MODEL: ${OPENROUTER_IMAGE_MODEL}
