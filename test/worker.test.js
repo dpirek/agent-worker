@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { officeUploadUrl, uploadWorkspaceZip } from "../lib/office-upload.js";
+import { officeFileUrl, officeUploadUrl, uploadWorkspaceZip } from "../lib/office-upload.js";
 import { agentInfo, appendWorkspaceLinks, createWorkerServer, stopTaskCommand } from "../lib/worker.js";
 
 function officeHarness() {
@@ -181,7 +181,7 @@ async function listeningServer(options) {
     uploadWorkspace: options?.uploadWorkspace || (async ({ archivePath, taskId }) => ({
       name: `${taskId}.zip`,
       size: (await fs.stat(archivePath)).size,
-      uri: `https://office.example/api/workspace-file-asset?workspace=.&path=${taskId}.zip`,
+      uri: `https://office.example/api/workspace-file-asset?projectId=central-office&path=${taskId}.zip`,
     })),
     env: {
       ...options?.env,
@@ -207,8 +207,8 @@ test("registers with the office and completes a delivered WebSocket task", async
       WORKER_NAME: "Repository Worker",
     },
     officeConnectionFactory: office.factory,
-    uploadWorkspace: async ({ archivePath, taskId, messageId }) => {
-      uploadedArchive = { content: await fs.readFile(archivePath), taskId, messageId };
+    uploadWorkspace: async ({ archivePath, taskId, messageId, projectId }) => {
+      uploadedArchive = { content: await fs.readFile(archivePath), taskId, messageId, projectId };
       return {
         name: `${taskId}.zip`,
         size: (await fs.stat(archivePath)).size,
@@ -230,6 +230,7 @@ test("registers with the office and completes a delivered WebSocket task", async
   office.deliver({
     type: "task",
     taskId: "task-001",
+    projectId: "3641fd01-967f-41ca-96db-dba4cee22528",
     priority: "high",
     message: { messageId: "msg-001", role: "manager", parts: [{ kind: "text", text: "Do the work" }] },
   });
@@ -257,6 +258,7 @@ test("registers with the office and completes a delivered WebSocket task", async
   assert.equal(await fs.readFile(path.join(taskWorkspace, "output.md"), "utf8"), "finished: Do the work");
 
   assert.equal(uploadedArchive.taskId, "task-001");
+  assert.equal(uploadedArchive.projectId, "3641fd01-967f-41ca-96db-dba4cee22528");
   assert.equal(uploadedArchive.messageId, "msg-001");
   const archive = uploadedArchive.content;
   assert.equal(archive.readUInt32LE(0), 0x04034b50);
@@ -392,6 +394,7 @@ test("posts a workspace ZIP directly to the Office upload endpoint", async (t) =
   const uploaded = await uploadWorkspaceZip({
     archivePath,
     taskId: "task-upload",
+    projectId: "3641fd01-967f-41ca-96db-dba4cee22528",
     messageId: "message-upload",
     env,
     fetchImpl: async (url, options) => {
@@ -411,7 +414,20 @@ test("posts a workspace ZIP directly to the Office upload endpoint", async (t) =
   assert.equal(request.options.headers["x-office-task-id"], "task-upload");
   assert.equal(request.options.headers["x-office-message-id"], "message-upload");
   assert.deepEqual(request.options.body, archive);
-  assert.equal(uploaded.uri, "https://office.example/api/workspace-file-asset?workspace=.&path=task-upload.zip");
+  assert.equal(uploaded.uri, "https://office.example/api/workspace-file-asset?projectId=3641fd01-967f-41ca-96db-dba4cee22528&path=task-upload.zip");
+});
+
+test('Office file links use the assigned project and safely encode relative paths', () => {
+  const env = {AI_HARNESS_OFFICE_URL:'wss://office.example/ws/workers'};
+  const projectId = '3641fd01-967f-41ca-96db-dba4cee22528';
+  const url = new URL(officeFileUrl(env, projectId, 'docs/contract.md'));
+  assert.equal(url.pathname, '/api/workspace-file-asset');
+  assert.equal(url.searchParams.get('projectId'), projectId);
+  assert.equal(url.searchParams.get('path'), 'docs/contract.md');
+  assert.equal(url.searchParams.has('workspace'), false);
+  const special = new URL(officeFileUrl(env, 'other-project', 'docs/a & b#1.md'));
+  assert.equal(special.searchParams.get('path'), 'docs/a & b#1.md');
+  assert.equal(special.searchParams.get('projectId'), 'other-project');
 });
 
 test("derives the Office upload endpoint from the worker WebSocket URL", () => {
