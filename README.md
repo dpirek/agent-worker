@@ -234,10 +234,13 @@ to the configured Office upload workspace to check file-transfer connectivity. I
 or failure without blocking tasks or disconnecting from the Office.
 
 On success, the final Markdown is saved as `output.md` and the workspace is packaged as a ZIP. The
-worker sends the ZIP directly to the Office with an authenticated binary
-`POST /api/workspace-upload`; only after that succeeds does it send the completed update. The
-artifact identifies the Office-hosted copy, so the Office does not download the archive from the
-worker. Failed updates contain `error.message` and no deliverables.
+worker uploads the ZIP as raw bytes to the assignment's `artifactUpload.url` using
+its task-scoped token and `application/octet-stream`. Only after upload succeeds does
+it send the completed update with `uploadedArtifactIds`. Office consumes the staged
+artifact directly, without downloading a protected file URL. Upload credentials are
+kept out of task history and status responses and discarded when the task ends.
+Older assignments without `artifactUpload` retain the `/api/workspace-upload` and
+artifact-URL delivery path. Failed updates contain `error.message` and no deliverables.
 
 The worker auto-approves only the tools named in `WORKER_TOOLS`, because no interactive user is
 present. The default tool set includes `list_teammates` and `ask_teammate`; deployments may remove

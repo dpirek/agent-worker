@@ -48,10 +48,13 @@ that point. Each assignment's `taskId` is used as the execution identity and its
 `message.messageId` is copied to every update's `inReplyTo`.
 
 The worker sends a `working` update as execution starts. Successful execution uploads the workspace
-ZIP directly to the Office with an authenticated binary `POST /api/workspace-upload`, then ends with
-exactly one `completed` update. Its `artifacts` array identifies the Office-hosted ZIP with an
-`application/zip` MIME type, byte size, and file count. An upload failure fails the task instead of
-publishing a worker-hosted fallback URL.
+ZIP as raw bytes to the assignment's `artifactUpload.url`, replacing the `name` query
+parameter with the ZIP filename. The request uses `Authorization: Bearer <artifactUpload.token>`
+and `Content-Type: application/octet-stream`. Exactly one `completed` update follows,
+with `uploadedArtifactIds: [<returned artifactId>]` and no download-URL artifacts.
+Invalid credentials, upload failures, and malformed responses fail the task without
+falling back to another upload endpoint. Assignments without `artifactUpload` use the
+legacy `/api/workspace-upload` path and an `artifacts` array.
 
 Failed execution ends with exactly one `failed` update containing `error.message` and explanatory
 Markdown. Failed updates never include artifacts.

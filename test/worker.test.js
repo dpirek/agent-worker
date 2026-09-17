@@ -79,6 +79,77 @@ test("answers a correlated direct message without creating a task", async (t) =>
   await assert.rejects(fs.access(directWorkspace));
 });
 
+test('delivers assignment uploads by ID without download URLs or exposed credentials', async t => {
+  for (const fail of [false,true]) {
+    const office = officeHarness();
+    const uploads = [];
+    const {server,url} = await listeningServer({
+      env:{AI_HARNESS_OFFICE_URL:'wss://office.example',AI_HARNESS_WORKER_TOKEN:'shared-secret'},
+      officeConnectionFactory:office.factory, uploadWorkspace:uploadWorkspaceZip, onInfo:()=>{},
+      runTask:async()=> 'Finished',
+      fetchImpl:async(endpoint,options)=>{
+        const target = new URL(endpoint);
+        if (target.pathname !== '/api/worker-artifacts') return Response.json({ok:true});
+        uploads.push({target,options});
+        return fail ? new Response('private-upload-token',{status:401})
+          : Response.json({ok:true,artifactId:'artifact-delivered'});
+      },
+    });
+    t.after(()=>server.close());
+    office.deliver({type:'task',taskId:'upload-task',projectId:'project-one',
+      message:{messageId:'upload-message',parts:[{kind:'text',text:'Create deliverable'}]},
+      artifactUpload:{url:'/api/worker-artifacts?taskId=upload-task&name=<filename>',token:'private-upload-token',method:'POST',contentType:'application/octet-stream'},
+    });
+    for(let i=0;i<100 && office.sent.length<2;i++) await new Promise(resolve=>setTimeout(resolve,5));
+    const result = office.sent.at(-1);
+    assert.equal(result.status.state,fail?'failed':'completed');
+    assert.equal(uploads.length,1);
+    assert.equal(uploads[0].options.headers.authorization,'Bearer private-upload-token');
+    assert.equal(uploads[0].options.body.readUInt32LE(0),0x04034b50);
+    assert.equal(result.artifacts,undefined);
+    assert.deepEqual(result.uploadedArtifactIds,fail?undefined:['artifact-delivered']);
+    const status = await (await fetch(`${url}/api/status`)).json();
+    assert.doesNotMatch(JSON.stringify([office.sent,status]),/private-upload-token|<filename>/);
+  }
+});
+
+test('cancelling an assignment during upload aborts transfer and prevents completion', async t => {
+  const office = officeHarness();
+  let uploadSignal, release;
+  const {server,url} = await listeningServer({
+    env:{AI_HARNESS_OFFICE_URL:'wss://office.example',AI_HARNESS_WORKER_TOKEN:'shared-secret'},
+    officeConnectionFactory:office.factory, uploadWorkspace:uploadWorkspaceZip, onInfo:()=>{},
+    runTask:async()=> 'Finished',
+    fetchImpl:async(endpoint,options)=>{
+      if (new URL(endpoint).pathname !== '/api/worker-artifacts') return Response.json({ok:true});
+      uploadSignal = options.signal;
+      // Simulate a late successful response after cancellation.
+      await new Promise(resolve=>{release=resolve;});
+      return Response.json({ok:true,artifactId:'artifact-late'});
+    },
+  });
+  t.after(()=>{release?.();server.close();});
+  office.deliver({type:'task',taskId:'cancel-upload',
+    message:{messageId:'cancel-message',parts:[{kind:'text',text:'Create file'}]},
+    artifactUpload:{url:'/api/worker-artifacts?taskId=cancel-upload&name=<filename>',token:'private-upload-token',method:'POST',contentType:'application/octet-stream'},
+  });
+  for(let i=0;i<100 && !uploadSignal;i++) await new Promise(resolve=>setTimeout(resolve,5));
+  assert.ok(uploadSignal);
+  office.registration().onTaskCancel({taskId:'cancel-upload'},{connectionId:'connection-1'});
+  assert.equal(uploadSignal.aborted,true);
+  release();
+  let status;
+  for(let i=0;i<100;i++) {
+    status = await (await fetch(`${url}/api/status`)).json();
+    if (!status.queue.active) break;
+    await new Promise(resolve=>setTimeout(resolve,5));
+  }
+  assert.equal(status.queue.active,0);
+  assert.equal(status.tasks[0].state,'cancelled');
+  assert.ok(!office.sent.some(message=>message.status?.state==='completed'));
+  assert.doesNotMatch(JSON.stringify(status),/private-upload-token/);
+});
+
 test("recognizes Office stop commands", () => {
   assert.deepEqual(stopTaskCommand("@dave can you stop the current task?"), { mode: "current" });
   assert.deepEqual(stopTaskCommand("please cancel all tasks"), { mode: "all" });
