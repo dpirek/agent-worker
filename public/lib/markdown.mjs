@@ -1,19 +1,10 @@
-import { Marked } from "/vendor/marked.mjs";
-import DOMPurify from "/vendor/dompurify.mjs";
 import { workspaceLink } from "./workspace-links.mjs";
-
-const markdown = new Marked({ gfm: true, breaks: true, async: false });
+import { markdownHtml } from "./markdown-parser.mjs";
 
 export function renderMarkdown(text) {
-  const fragment = DOMPurify.sanitize(markdown.parse(String(text ?? "")), {
-    RETURN_DOM_FRAGMENT: true,
-    ALLOWED_TAGS: ["p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "del",
-      "blockquote", "pre", "code", "ul", "ol", "li", "a", "img", "table", "thead", "tbody", "tfoot",
-      "tr", "th", "td", "input", "sup", "sub", "details", "summary"],
-    ALLOWED_ATTR: ["href", "src", "alt", "title", "align", "colspan", "rowspan", "start", "type", "checked", "disabled"],
-    ALLOW_DATA_ATTR: false,
-    ALLOW_ARIA_ATTR: false,
-  });
+  const template = document.createElement("template");
+  template.innerHTML = markdownHtml(text);
+  const fragment = template.content;
   for (const link of fragment.querySelectorAll("a[href]")) {
     try {
       const original = link.getAttribute("href");
