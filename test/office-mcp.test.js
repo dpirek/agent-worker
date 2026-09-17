@@ -1,6 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {connectOfficeMcp,normalizeOfficeMcpServers} from '../lib/office-mcp.js';
+import {connectOfficeMcp,normalizeOfficeMcpServers,testOfficeMcpConnectivity} from '../lib/office-mcp.js';
+
+test('registration probe authenticates, reads project context, and releases its session', async () => {
+ const requests=[];
+ const env={AI_HARNESS_OFFICE_URL:'wss://office.example/ws/workers',AI_HARNESS_WORKER_TOKEN:'worker-secret'};
+ let toolError=false;
+ const fetchImpl=async(url,options)=>{
+  assert.equal(url,'https://office.example/mcp/projects/central-office/tasks/worker-connectivity');
+  assert.equal(options.headers.Authorization,'Bearer worker-secret');
+  assert.equal(options.redirect,'error');
+  const body=options.body?JSON.parse(options.body):{};
+  requests.push(options.method==='DELETE'?'DELETE':body.method);
+  if(options.method==='DELETE'||body.method==='notifications/initialized')return new Response(null,{status:202});
+  const result=body.method==='initialize'?{protocolVersion:'2025-11-25'}
+   :body.method==='tools/list'?{tools:[{name:'project_get_context'}]}
+   :{content:[{type:'text',text:'private project content'}],isError:toolError};
+  if(body.method==='tools/call')assert.deepEqual(body.params,{name:'project_get_context',arguments:{projectId:'central-office'}});
+  return Response.json({jsonrpc:'2.0',id:body.id,result},{headers:{'mcp-session-id':'probe-session'}});
+ };
+ const result=await testOfficeMcpConnectivity({env,fetchImpl});
+ assert.equal(result.status,'verified');
+ assert.equal(result.toolCount,1);
+ assert.ok(result.verifiedAt);
+ assert.doesNotMatch(JSON.stringify(result),/worker-secret|private project content/);
+ assert.deepEqual(requests,['initialize','notifications/initialized','tools/list','tools/call','DELETE']);
+ toolError=true;
+ await assert.rejects(testOfficeMcpConnectivity({env,fetchImpl}),/project-context connectivity test failed/);
+ assert.equal(requests.at(-1),'DELETE');
+ await assert.rejects(testOfficeMcpConnectivity({env,fetchImpl:async()=>new Response('worker-secret',{status:401})}),/HTTP 401/);
+});
 const config=(id='task-a',token='secret-a')=>({office_project:{type:'http',url:`/mcp/projects/project-a/tasks/${id}`,headers:{Authorization:`Bearer ${token}`}}});
 const servers=(id='task-a',token='secret-a')=>normalizeOfficeMcpServers(config(id,token),'wss://office.example/ws/workers',id);
 function mockOffice({failCall=false}={}) {

@@ -14,6 +14,8 @@ test("shows the office connection in the header", () => {
 
 test("reports Office MCP verification separately from the Office socket", async () => {
   const {officeMcpHeaderStatus}=await import('../public/lib/render.mjs');
+  assert.equal(officeMcpHeaderStatus({status:'verified',connectivity:{toolCount:5}}).text,'MCP verified');
+  assert.match(officeMcpHeaderStatus({status:'verified',connectivity:{toolCount:5}}).detail,/5 tools discovered/);
   assert.equal(officeMcpHeaderStatus({status:'waiting'}).text,'MCP waiting');
   assert.match(officeMcpHeaderStatus({status:'waiting'}).detail,/no active MCP connection/);
   assert.equal(officeMcpHeaderStatus({status:'connected',connectedTasks:2,toolCount:10}).className,'dot ok');
