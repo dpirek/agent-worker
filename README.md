@@ -21,6 +21,20 @@ cp .env.example .env
 npm start
 ```
 
+Run the terminal monitor with:
+
+```sh
+npm start -- --tui
+```
+
+The dashboard shows Office and MCP connectivity, the selected model, task and
+message queues, recent tasks, and model/tool activity. It refreshes twice per
+second and adapts to terminal size. Press **Space** to pause, **Up/Down** to browse
+activity history, **r** to return to live updates, or **q / Ctrl+C** to stop the
+worker. Quitting restores the terminal; it also stops the running agent.
+Piped or redirected output uses plain logs. No additional dependencies are needed.
+Use the `--` separator so npm forwards `--tui` to the worker.
+
 ### Use a local Codex session
 
 [`codex.js`](codex.js) is an Agent Office adapter for the locally installed Codex CLI. It uses the
