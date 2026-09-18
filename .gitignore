@@ -1,15 +1,24 @@
+# Environment files
 .env
 .env.developer
 .env.researcher
 .env.designer
 .env.secretary
-.workspace/
+
+# Node modules
 node_modules/
-.ui-verification/
+
+# Logs
 npm-debug.log*
+
+# DB
 db/*.sqlite
 db/*.sqlite-shm
 db/*.sqlite-wal
+
+# State
+.ui-verification/
+.workspace/
 
 # Apple
 .DS_Store
