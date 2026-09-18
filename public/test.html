@@ -16,7 +16,7 @@
         <textarea id="env-config" rows="13" spellcheck="false" autocomplete="off" aria-describedby="config-note" placeholder="Loading current provider and tool settings…"></textarea>
         <p class="hint" id="config-note">Omitted settings inherit from the running worker. These edits apply only to this run. Server ports, workspace paths, and database settings are ignored. Config text is not saved to browser storage or task history.</p>
         <p class="hint" id="key-status"></p>
-        <div class="test-actions"><button id="run-test" type="submit" aria-label="Run task" title="Run task" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></button><button id="stop-test" type="button" disabled>Stop</button><span id="run-status" role="status" aria-live="polite">Ready</span></div>
+        <div class="test-actions"><button id="run-test" type="submit" aria-label="Run task" title="Run task" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></button><button id="stop-test" type="button" aria-label="Stop task" title="Stop task" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" fill="currentColor"/></svg></button><span id="run-status" role="status" aria-live="polite">Ready</span></div>
         <p id="test-error" role="alert"></p>
       </form>
       <section class="test-card results" aria-label="Test results">

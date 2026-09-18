@@ -18,9 +18,10 @@
 .file-picker input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .hint { font-size: 11px; line-height: 1.6; margin: 10px 0; }
 .test-actions { margin-bottom: 0; }
-#run-test { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; padding: 0; background: var(--green); color: #10251b; border-color: var(--green); }
-#run-test svg { width: 20px; height: 20px; }
-#run-test:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+#run-test, #stop-test { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; padding: 0; }
+#run-test { background: var(--green); color: #10251b; border-color: var(--green); }
+#run-test svg, #stop-test svg { width: 20px; height: 20px; }
+#run-test:focus-visible, #stop-test:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 .test-card button:disabled { opacity: .4; cursor: default; }
 #test-error { color: #fca5a5; margin-top: 16px; overflow-wrap: anywhere; }
 #run-status, #elapsed { font-size: 11px; color: var(--muted); }
