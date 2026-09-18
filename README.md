@@ -281,6 +281,25 @@ the indicator returns to the registration test result when there are no active t
 
 ## Test
 
+Open `/test` on the running worker (or click **Test lab** in the console) to try
+tasks with different agent settings. Enter a prompt and edit the `.env` text or
+load an environment file from your computer. Each run creates a fresh built-in
+agent runner and its own task workspace. Unspecified settings inherit from the
+running worker; provider, tool, prompt, MCP, and turn-limit settings apply to that
+run only. Server ports, database paths, workspace roots, and Office registration
+are not changed. This page tests the built-in provider-based runner, including
+when served by a Codex or Claude adapter.
+
+The page shows progress, model/tool activity, the final Markdown response, image
+and text previews, file links, and a workspace ZIP. Use **Stop** to cancel a run.
+Runs remain visible in task history, but configuration text is not persisted.
+Known key/token values are redacted from activity, errors, and the final response.
+
+The **CNN screenshot** and **Employment history** examples enable `chrome_devtools`.
+That tool needs Chrome and access to install/start its MCP server. Actual results
+depend on the configured provider and website access; the LinkedIn example asks
+the agent to report login/access restrictions and avoid inventing missing data.
+
 ```sh
 npm test
 ```

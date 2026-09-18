@@ -2,7 +2,6 @@ import "./components/index.mjs";
 import { fetchStatus, fetchTask, submitTask } from "./lib/api.mjs";
 import { initPanelMinimizing } from "./lib/panel-minimize.mjs";
 import { initPanelResizing } from "./lib/panel-resize.mjs";
-import { revealInitialText } from "./lib/retro-reveal.mjs";
 import { createRenderer } from "./lib/render.mjs";
 import { initWorkspaceBrowser } from "./lib/workspace-browser.mjs";
 import { initChat } from "./lib/chat.mjs";
@@ -143,7 +142,6 @@ elements.statusDialog.addEventListener("click", (event) => {
 
 async function initialize() {
   await refreshStatus();
-  await revealInitialText();
   setInterval(refreshStatus, 2500);
 }
 

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" class="test-document">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent test lab</title>
+  <link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/test.css">
+</head>
+<body class="test-page">
+  <main class="test-shell">
+    <div class="test-grid">
+      <form id="test-form" class="test-card">
+        <h2>01 / Configure a run</h2>
+        <label for="task-prompt">Task prompt</label>
+        <textarea id="task-prompt" rows="6" required placeholder="Describe the task and the files you want delivered…"></textarea>
+        <div class="config-heading"><label for="env-config">.env configuration</label><label class="file-picker">Load .env<input id="env-file" type="file" aria-label="Load an environment file"></label></div>
+        <textarea id="env-config" rows="13" spellcheck="false" autocomplete="off" aria-describedby="config-note" placeholder="Loading current provider and tool settings…"></textarea>
+        <p class="hint" id="config-note">Omitted settings inherit from the running worker. These edits apply only to this run. Server ports, workspace paths, and database settings are ignored. Config text is not saved to browser storage or task history.</p>
+        <p class="hint" id="key-status"></p>
+        <div class="test-actions"><button id="run-test" type="submit" aria-label="Run task" title="Run task" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></button><button id="stop-test" type="button" disabled>Stop</button><span id="run-status" role="status" aria-live="polite">Ready</span></div>
+        <p id="test-error" role="alert"></p>
+      </form>
+      <section class="test-card results" aria-label="Test results">
+        <div class="result-heading"><h2>02 / Delivered output</h2><span id="elapsed"></span></div>
+        <div id="test-output" class="markdown-body empty-result">Your agent’s response will appear here.</div>
+        <div class="result-heading"><h2>Files</h2><a id="download-zip" hidden>Download workspace ZIP ↓</a></div>
+        <div id="test-files" class="file-results">No files yet.</div>
+        <details open><summary>Run activity</summary><pre id="test-activity">Waiting for a task.</pre></details>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/lab.mjs"></script>
+</body>
+</html>

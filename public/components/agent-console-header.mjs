@@ -11,6 +11,7 @@ defineComponent("agent-console-header", {
       <p class="subtitle-meta">v1.0.0 · Workspace <strong id="workspace-summary">—</strong></p>
     </div>
     <div class="header-actions">
+      <a href="/test">Test lab ↗</a>
       <div class="mcp-indicator" id="mcp-indicator" role="status"><span class="dot" id="mcp-dot" aria-hidden="true"></span><span id="mcp-text">MCP checking</span></div>
       <button class="live office-toggle" id="office-toggle" type="button" disabled aria-label="Checking Office connection"><span class="dot" id="health-dot" aria-hidden="true"></span><span id="health-text">Checking server</span></button>
       <button class="icon-button" id="open-status" type="button" aria-label="Open agent status" title="Agent status">

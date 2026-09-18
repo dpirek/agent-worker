@@ -5,6 +5,7 @@
 .env.secretary
 .workspace/
 node_modules/
+.ui-verification/
 npm-debug.log*
 db/*.sqlite
 db/*.sqlite-shm
