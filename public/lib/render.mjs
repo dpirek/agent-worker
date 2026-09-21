@@ -154,9 +154,6 @@ function createRenderer(elements) {
     elements.mcpDot.className = mcpStatus.className;
     elements.mcpText.textContent = mcpStatus.text;
     elements.mcpIndicator.title = mcpStatus.detail;
-    elements.agentDescription.textContent = `${data.agent.name} — ${data.agent.description}`;
-    elements.workspaceSummary.textContent = data.execution.workspace;
-    elements.workspaceSummary.title = data.execution.workspace;
     elements.queueBadge.textContent = `${data.queue.active} active · ${data.queue.queued} queued`;
 
     const rows = [

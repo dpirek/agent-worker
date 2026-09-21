@@ -8,7 +8,6 @@ import { initChat } from "./lib/chat.mjs";
 
 const select = (selector) => document.querySelector(selector);
 const elements = {
-  agentDescription: select("#agent-description"),
   agentInfo: select("#agent-info"),
   consoleNode: select("#console"),
   form: select("#repl-form"),
@@ -24,7 +23,6 @@ const elements = {
   status: select("#status"),
   statusDialog: select("#status-dialog"),
   tasks: select("#tasks"),
-  workspaceSummary: select("#workspace-summary"),
 };
 const renderer = createRenderer(elements);
 let activeTask = null;

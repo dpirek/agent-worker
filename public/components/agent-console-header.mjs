@@ -7,8 +7,6 @@ defineComponent("agent-console-header", {
     <div class="brand-mark"><img class="worker-avatar" src="/assets/avatars/developer.png" alt="Worker avatar"></div>
     <div class="brand-copy">
       <h1>Agent Worker Console</h1>
-      <p class="subtitle" id="agent-description">Connecting to configured worker…</p>
-      <p class="subtitle-meta">v1.0.0 · Workspace <strong id="workspace-summary">—</strong></p>
     </div>
     <div class="header-actions">
       <a class="header-control" href="/test">Test lab ↗</a>
