@@ -51,7 +51,12 @@ agent-status-dialog { display: contents; }
 .subtitle-meta { margin-top: 4px; color: #7f898c; font-size: 10px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .subtitle-meta strong { color: var(--muted); font-weight: 500; }
 .header-actions { display: flex; align-items: center; gap: 12px; padding: 20px; }
-.live { height: 58px; min-width: 196px; display: flex; align-items: center; justify-content: center; gap: 13px; border: 1px solid var(--line); color: var(--muted); text-transform: uppercase; }
+.header-actions .header-control { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; min-width: 0; padding: 0 12px; border: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--muted); font: inherit; font-size: 10px; line-height: 1.4; text-transform: uppercase; text-decoration: none; }
+.header-actions a.header-control { white-space: nowrap; }
+.header-actions .icon-button { width: 40px; flex: 0 0 40px; padding: 0; }
+.header-actions .dot { width: 8px; height: 8px; flex: 0 0 8px; }
+.header-actions :is(a, button).header-control:hover:not(:disabled) { border-color: var(--green); background: #63e58a0a; color: var(--text); }
+.header-actions .header-control:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 #health-text { font-size: 10px; }
 .dot { width: 11px; height: 11px; aspect-ratio: 1; flex: 0 0 11px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px currentColor; }
 .dot.ok { background: var(--green); }
@@ -182,7 +187,9 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
   .subtitle { margin-top: 4px; font-size: 10px; }
   .subtitle-meta { margin-top: 2px; font-size: 9px; }
   .header-actions { padding: 13px 10px; }
-  .live { min-width: 0; width: 38px; height: 48px; border: 0; }
+  .header-actions .header-control { height: 36px; padding-inline: 8px; font-size: 9px; }
+  .header-actions :is(.live, .icon-button, .mcp-indicator) { width: 36px; flex: 0 0 36px; padding: 0; }
+  .mcp-indicator span:last-child { display: none; }
   .live span:last-child { display: none; }
   .icon-button { width: 48px; height: 48px; flex-basis: 48px; }
   .dashboard, .repl-panel { min-height: 0; }
@@ -297,9 +304,4 @@ td:first-child { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
   .workspace-panel.is-expanded .workspace-body { grid-template-columns: minmax(100px, 35%) minmax(0, 1fr); }
 }
 
-.mcp-indicator { display: flex; align-items: center; gap: 8px; max-width: 140px; padding: 8px; border: 1px solid var(--line-dim); color: var(--muted); font-size: 10px; text-transform: uppercase; }
-.mcp-indicator .dot { width: 7px; height: 7px; flex-basis: 7px; }
 .state-cancelled { color: var(--amber); }
-@media (max-width: 640px) {
-  .mcp-indicator { max-width: 84px; padding: 5px; gap: 5px; font-size: 9px; }
-}
