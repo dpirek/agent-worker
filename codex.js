@@ -10,6 +10,7 @@ import { parseEnv } from "node:util";
 
 import { createWorkerServer, ensureWorkerWorkspace } from "./lib/worker.js";
 import { OFFICE_MCP_INSTRUCTIONS } from "./lib/office-mcp.js";
+import { createTerminalMonitor, tuiRequested } from "./lib/tui.js";
 
 const SANDBOX_MODES = new Set(["read-only", "workspace-write", "danger-full-access"]);
 const DEFAULT_MAX_DIAGNOSTIC_BYTES = 32 * 1024;
@@ -180,8 +181,12 @@ function loadCodexWorkerEnvironment(filePath, baseEnv = process.env) {
   return codexWorkerEnvironment({ ...baseEnv, ...fileEnv });
 }
 
-async function main() {
-  const env = loadCodexWorkerEnvironment(new URL(".env", import.meta.url));
+async function main({
+  env = loadCodexWorkerEnvironment(new URL(".env", import.meta.url)),
+  argv = process.argv.slice(2),
+  input = process.stdin,
+  output = process.stdout,
+} = {}) {
   if (!String(env.AI_HARNESS_OFFICE_URL || "").trim()) throw new Error("AI_HARNESS_OFFICE_URL is required.");
   if (!String(env.AI_HARNESS_WORKER_TOKEN || "").trim()) throw new Error("AI_HARNESS_WORKER_TOKEN is required.");
   const port = Number(env.PORT || 3000);
@@ -190,18 +195,57 @@ async function main() {
   }
   const host = String(env.HOST || "0.0.0.0");
   await ensureWorkerWorkspace(env);
-  const server = createWorkerServer({ env, runTask: createCodexRunner({ env }) });
+  const useTui = tuiRequested(argv, env);
+  let monitor;
+  const startupLogs = [];
+  const onInfo = message => {
+    if (monitor) monitor.log(message);
+    else if (useTui) {
+      startupLogs.push(message);
+      if (startupLogs.length > 200) startupLogs.shift();
+    } else console.error(message);
+  };
+  const server = createWorkerServer({ env, runTask: createCodexRunner({ env, onInfo }), onInfo });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, resolve);
   });
   const address = server.address();
   const listeningPort = typeof address === "object" && address ? address.port : port;
-  console.log(`Local Codex agent listening on http://${host}:${listeningPort}`);
+  const displayHost = ['0.0.0.0', '::'].includes(host) ? 'localhost' : host.includes(':') ? `[${host}]` : host;
+  const url = `http://${displayHost}:${listeningPort}`;
+  const message = `Local Codex agent listening on ${url}`;
 
-  const stop = () => server.close(() => process.exit(0));
+  let stopping = false;
+  const stop = () => {
+    if (stopping) return;
+    stopping = true;
+    monitor?.stop();
+    server.close(() => process.exit(0));
+    server.closeAllConnections();
+    setTimeout(() => process.exit(0), 1500).unref();
+  };
+  const restoreTerminal = () => monitor?.stop();
+  const activity = event => monitor?.log(`${event.category || 'agent'} / ${event.message || ''}`);
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
+  process.once('exit', restoreTerminal);
+  process.on('uncaughtExceptionMonitor', restoreTerminal);
+  server.once('close', () => {
+    restoreTerminal();
+    server.off('activity', activity);
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+    process.off('exit', restoreTerminal);
+    process.off('uncaughtExceptionMonitor', restoreTerminal);
+  });
+  if (useTui) {
+    monitor = createTerminalMonitor({ getStatus: () => server.getWorkerStatus(), onQuit: stop, address: url, input, output });
+    server.on('activity', activity);
+    monitor.start();
+    for (const entry of startupLogs.splice(0)) monitor.log(entry);
+    monitor.log(message);
+  } else output.write(message + '\n');
   return server;
 }
 

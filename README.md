@@ -64,6 +64,10 @@ worker protocol:
 ```sh
 codex login                 # only needed when Codex is not already authenticated
 npm run start:codex
+# Show the terminal monitoring dashboard:
+npm run start:codex --tui
+# Explicit argument forwarding also works:
+npm run start:codex -- --tui
 ```
 
 It reads the normal Office and worker settings from `.env`. For this adapter, values in `.env` are
@@ -96,7 +100,14 @@ MCP servers:
 ```sh
 claude auth login            # only if Claude Code is not already authenticated
 npm run start:claude
+# Show the terminal monitoring dashboard:
+npm run start:claude --tui
+# Explicit npm argument forwarding also works:
+npm run start:claude -- --tui
 ```
+
+The dashboard shows Claude worker status, task queues, and activity. Press **q / Ctrl+C**
+to stop the worker and restore the terminal. Piped output uses plain logs.
 
 The adapter reads Office credentials and worker settings from `.env`, overriding stale shell values.
 Optional Claude settings are `CLAUDE_EXECUTABLE`, `CLAUDE_WORKER_NAME`, `CLAUDE_MODEL`,

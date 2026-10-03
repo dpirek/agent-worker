@@ -12,7 +12,50 @@ import {
   createCodexRunner,
   latestAgentMessage,
   loadCodexWorkerEnvironment,
+  main,
 } from "../codex.js";
+
+for (const mode of ['argument', 'npm', 'piped']) {
+  test(`Codex launcher connects the terminal monitor (${mode}) and restores it on close`, async (t) => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-tui-'));
+    t.after(() => fs.rm(workspace, { recursive: true, force: true }));
+    const input = new PassThrough();
+    const output = new PassThrough();
+    input.isTTY = output.isTTY = mode !== 'piped';
+    input.isRaw = false;
+    input.setRawMode = value => { input.isRaw = value; };
+    output.columns = 100;
+    output.rows = 24;
+    let written = '';
+    output.on('data', chunk => { written += chunk; });
+    const signalsBefore = process.listenerCount('SIGTERM');
+    const server = await main({
+      env: codexWorkerEnvironment({
+        HOST: '127.0.0.1', PORT: '0', WORKER_TASK_DB: ':memory:',
+        WORKER_WORKSPACE: workspace, CODEX_WORKER_NAME: 'TUI Test Codex',
+        AI_HARNESS_OFFICE_URL: 'invalid://office', AI_HARNESS_WORKER_TOKEN: 'test-token',
+        ...(mode === 'npm' ? { npm_config_tui: 'true' } : {}),
+      }),
+      argv: mode === 'npm' ? [] : ['--tui'], input, output,
+    });
+    t.after(() => { if (server.listening) server.close(); });
+    server.emit('activity', { category: 'task', message: 'Test task started' });
+    output.emit('resize');
+    assert.match(written, /Local Codex agent listening on http:\/\/127\.0\.0\.1:/);
+    assert.match(written, /Office registration disabled/);
+    assert.match(written, /task \/ Test task started/);
+    if (mode === 'piped') assert.doesNotMatch(written, /\x1b/);
+    else {
+      assert.match(written, /AGENT WORKER \/ TUI Test Codex/);
+      assert.equal(input.isRaw, true);
+    }
+    await new Promise(resolve => server.close(resolve));
+    assert.equal(input.isRaw, false);
+    assert.equal(process.listenerCount('SIGTERM'), signalsBefore);
+    assert.equal(server.listenerCount('activity'), 0);
+    if (mode !== 'piped') assert.ok(written.endsWith('\x1b[?25h\x1b[?1049l'));
+  });
+}
 
 test("builds a non-interactive Codex command from local settings", () => {
   const args = codexArguments({
